@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools >= 75.0",  "setuptools_scm[toml]>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+authors = [
+    { name = "The Board of Trustees of the Leland Stanford Junior University, through SLAC National Accelerator Laboratory"},
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Natural Language :: English",
+    "Programming Language :: Python",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "slac-devices @ git+ssh://git@github.com/slaclab/slac-devices.git"
+]
+description = "Tools to support high level application development at LCLS using Python"
+dynamic = ["version"]
+name = "slac-measurements"
+readme = {file = "README.md", content-type = "text/markdown"}
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+include = ["slac_measurements*"]

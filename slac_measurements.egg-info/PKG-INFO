@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: slac-measurements
+Version: 0.0.0
+Summary: Tools to support high level application development at LCLS using Python
+Author: The Board of Trustees of the Leland Stanford Junior University, through SLAC National Accelerator Laboratory
+Classifier: Development Status :: 2 - Pre-Alpha
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python
+Classifier: Topic :: Scientific/Engineering
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: slac-devices @ git+ssh://git@github.com/slaclab/slac-devices.git
+
+# slac-measurements
+Repository for accelerator beam calculations and measurements.
