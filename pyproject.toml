@@ -23,7 +23,7 @@ dependencies = [
     "pandas",
     "scikit-image",
     "torch",
-    "slac-devices @ git+ssh://git@github.com/slaclab/slac-devices.git"
+    "slac-devices @ git+https://github.com/slaclab/slac-devices.git@main"
 ]
 description = "Tools to support high level application development at LCLS using Python"
 dynamic = ["version"]
@@ -43,6 +43,9 @@ edef  = [
 ]
 edef-ssh  = [
     "edef @ git+ssh://git@github.com/slaclab/edef.git"
+]
+slac-devices-ssh  = [
+    "slac-devices @ git+ssh://git@github.com/slaclab/slac-devices.git@main"
 ]
 
 [options]
