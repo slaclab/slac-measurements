@@ -135,6 +135,7 @@ class WireMeasurementCollection(slac_measurements.beam_profile.BeamProfileMeasur
         return self
 
     def _create_device_dictionary(self) -> dict:
+        # TODO: Move to its own module
         """
         Creates a device dictionary for a wire scan setup.  Includes the wire
         device and any associated detectors from metadata.
@@ -334,9 +335,9 @@ class WireMeasurementCollection(slac_measurements.beam_profile.BeamProfileMeasur
         """Run a step scan: init wire, start buffer, move positions, retract, wait."""
 
         def _move_to_step_position(
-            self, position: int, position_index: int, total_positions: int
+            position: int, position_index: int, total_positions: int
         ) -> None:
-            """Move wire to a step position, waiting up to 15s or raise error."""
+            """Move wire to a step position."""
             self.logger.info(
                 f"Moving wire to {position} (step {position_index + 1}/{total_positions})..."
             )
@@ -348,11 +349,11 @@ class WireMeasurementCollection(slac_measurements.beam_profile.BeamProfileMeasur
             self.my_wire.motor = position
 
             # Wait for position with 250 um tolerance
-            if not slac_measurements.utils._wait_until(
+            if not slac_measurements.utils.wait_until(
                 lambda: abs(self.my_wire.motor_rbv - position) < _WIRE_TOLERANCE,
             ):
                 raise RuntimeError(
-                    f"{self.my_wire.name} did not reach position {position} after 15s."
+                    f"{self.my_wire.name} did not reach position {position} after 10s."
                 )
 
         def _calculate_step_speed(position_index: int, positions: list) -> int:
@@ -374,7 +375,7 @@ class WireMeasurementCollection(slac_measurements.beam_profile.BeamProfileMeasur
             positions = []
             for profile in self.my_wire.active_profiles():
                 for mode in ["inner", "outer"]:
-                    attr_name = f"{profile}_wire_{mode}"
+                    attr_name = f"{profile.lower()}_wire_{mode}"
                     positions.append(getattr(self.my_wire, attr_name))
             return sorted(positions)
 
@@ -391,11 +392,11 @@ class WireMeasurementCollection(slac_measurements.beam_profile.BeamProfileMeasur
         # Get ordered positions and move to each
         positions = _get_step_positions()
         for i, position in enumerate(positions):
-            _move_to_step_position(position, i, len(positions))
+            _move_to_step_position(position=position, position_index=i, total_positions=len(positions))
 
         # Retract wire
         self.logger.info("Retracting wire...")
-        self.my_wire.speed = self.my_wire.speed_max
+        self.my_wire.speed = int(self.my_wire.speed_max)
         self.my_wire.motor = 100
 
         # Wait for buffer acquisition to complete
@@ -407,12 +408,14 @@ class WireMeasurementCollection(slac_measurements.beam_profile.BeamProfileMeasur
         import slac_measurements.ws_buffer
 
         if self.my_buffer is None:
-            return slac_measurements.ws_buffer.reserve_buffer(
+            self.my_buffer = slac_measurements.ws_buffer.reserve_buffer(
                 beampath=self.beampath,
                 logger=self.logger,
                 pulses=self.my_wire.scan_pulses,
                 beam_rate=self.my_wire.beam_rate,
             )
+
+        return self.my_buffer
 
     def _scan_with_wire(self, scan_type: str = "step") -> None:
         """
