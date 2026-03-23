@@ -174,7 +174,7 @@ class WireMeasurementCollection(slac_measurements.beam_profile.BeamProfileMeasur
 
             device = creator(area=area, name=name)
             if device is None:
-                self.logger.warning("Device creation for %s returned None. Skipping.", name)
+                self.logger.warning("Device creation for %s returned None.", name)
 
             return device
 
@@ -220,11 +220,12 @@ class WireMeasurementCollection(slac_measurements.beam_profile.BeamProfileMeasur
                 default_detector = lblm_config[self.my_wire.name]
                 return default_detector
 
-        scan_ranges = {
-            "x": self.my_wire.x_range,
-            "y": self.my_wire.y_range,
-            "u": self.my_wire.u_range,
-        }
+        def _get_scan_ranges():
+            return {
+                "x": self.my_wire.x_range,
+                "y": self.my_wire.y_range,
+                "u": self.my_wire.u_range,
+            }
 
         return MeasurementMetadata(
             wire_name=self.my_wire.name,
@@ -233,7 +234,7 @@ class WireMeasurementCollection(slac_measurements.beam_profile.BeamProfileMeasur
             beampath=self.beampath,
             detectors=self.detectors,
             default_detector=_get_default_detector(),
-            scan_ranges=scan_ranges,
+            scan_ranges=_get_scan_ranges(),
             timestamp=datetime.now(),
             active_profiles=self.my_wire.active_profiles(),
             install_angle=self.my_wire.install_angle,
@@ -282,11 +283,7 @@ class WireMeasurementCollection(slac_measurements.beam_profile.BeamProfileMeasur
         self.logger.info("Data retrieved from buffer. Scan complete.")
         return data
 
-    def _initialize_wire_with_retry(
-        self,
-        wire_action: str,
-        max_attempts: int = 3,
-    ) -> None:
+    def _initialize_wire_with_retry(self, wire_action: str, max_attempts: int = 3) -> None:
         """Call start_scan/initialize with retries until wire.enabled.
 
         wire_action must be 'start_scan' or 'initialize'; raises on failure.
@@ -298,9 +295,7 @@ class WireMeasurementCollection(slac_measurements.beam_profile.BeamProfileMeasur
 
         # Skip initialization if wire is already enabled
         if self.my_wire.enabled:
-            self.logger.info(
-                f"{self.my_wire.name} is already enabled. Skipping initialization."
-            )
+            self.logger.info(f"{self.my_wire.name} is already enabled.")
             return
 
         # Choose the appropriate method to call
