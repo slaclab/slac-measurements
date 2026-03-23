@@ -9,11 +9,13 @@ from pydantic import (
 )
 from typing import Optional
 
+import slac_measurements
+import slac_measurements.measurement
 from slac_measurements.utils import NDArrayAnnotatedType
 import lcls_tools
 
 
-class BeamProfileMeasurementResult(lcls_tools.common.BaseModel):
+class BeamProfileMeasurementResult(slac_measurements.BaseModel):
     """
     Class that contains the results of a beam profile measurement
     (for any set of axes)
@@ -57,7 +59,7 @@ class BeamProfileCollectionResult(BeamProfileMeasurementResult):
     raw_data: Dict[str, Any]
 
 
-class BeamProfileMeasurement(Measurement):
+class BeamProfileMeasurement(slac_measurements.measurement.Measurement):
     """
     Class that allows for beam profile measurements and fitting
     (for any set of axes)
@@ -82,7 +84,7 @@ class BeamProfileMeasurement(Measurement):
         pass
 
 
-class BeamProfileAnalysis(lcls_tools.common.BaseModel):
+class BeamProfileAnalysis(slac_measurements.BaseModel):
     """
     Abstract base class for post-processing analysis of beam profile measurements.
 
