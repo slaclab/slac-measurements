@@ -11,7 +11,7 @@ from typing_extensions import Self
 from slac_devices.wire import Wire
 import slac_measurements.beam_profile
 import slac_measurements.utils
-from slac_measurements.ws_collection_results import (
+from slac_measurements.wires.ws_collection_results import (
     MeasurementMetadata,
     WireMeasurementCollectionResult,
 )

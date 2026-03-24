@@ -6,7 +6,7 @@ from slac_measurements.beam_profile import (
     BeamProfileMeasurementResult,
 )
 from slac_measurements.utils import NDArrayAnnotatedType
-from slac_measurements.ws_collection_results import (
+from slac_measurements.wires.ws_collection_results import (
     WireMeasurementCollectionResult,
     # helper functions used when loading analysis results
     _load_metadata,

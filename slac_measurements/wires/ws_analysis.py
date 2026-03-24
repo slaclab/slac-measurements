@@ -4,7 +4,7 @@ import warnings
 
 import slac_measurements.fitting.gaussian as gaussian
 from slac_measurements.beam_profile import BeamProfileAnalysis
-from slac_measurements.ws_analysis_results import (
+from slac_measurements.wires.ws_analysis_results import (
     DetectorFit,
     DetectorProfileMeasurement,
     FitResult,
