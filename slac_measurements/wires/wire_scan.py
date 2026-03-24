@@ -5,7 +5,10 @@ from slac_measurements.wires.ws_analysis import WireMeasurementAnalysis
 from slac_measurements.wires.ws_analysis_results import (
     WireMeasurementAnalysisResult,
 )
-from typing import Literal
+from slac_measurements.wires.ws_collection_results import (
+    WireMeasurementCollectionResult,
+)
+from typing import Literal, Optional
 
 
 class WireBeamProfileMeasurement(
@@ -24,13 +27,14 @@ class WireBeamProfileMeasurement(
     name: str = "Wire Beam Profile Measurement"
     beam_profile_device: Wire
     beampath: str
+    collection_result: Optional[WireMeasurementCollectionResult] = None
 
     def measure(
         self,
         scan_type: str = "step",
         fitting_method: Literal[
             "gaussian", "asymmetric_gaussian", "super_gaussian"
-        ] = "gaussian"
+        ] = "gaussian",
     ) -> WireMeasurementAnalysisResult:
         """
         Instantiate a WireMeasurementCollection, run the scan, analyze, and
@@ -40,11 +44,10 @@ class WireBeamProfileMeasurement(
         ----------
         scan_type : str
             ``"on_the_fly"`` or ``"step"`` (default).
-        fitting_method : str
+        fitting_method : str, optional
             Fit model used by the downstream wire-scan analysis. Supported
             values are ``"gaussian"``, ``"asymmetric_gaussian"``, and
-            ``"super_gaussian"``. Defaults to the measurement instance's
-            configured ``fitting_method``.
+            ``"super_gaussian"``.
 
         Returns
         -------
@@ -55,10 +58,38 @@ class WireBeamProfileMeasurement(
             beam_profile_device=self.beam_profile_device,
             beampath=self.beampath,
         )
-        collection_result = collection.measure(scan_type=scan_type)
+        self.collection_result = collection.measure(scan_type=scan_type)
+        return self.analyze(fitting_method=fitting_method)
+
+    def analyze(self, fitting_method) -> WireMeasurementAnalysisResult:
+        """
+        Analyze the most recently collected wire-scan data.
+
+        Parameters
+        ----------
+        fitting_method : str, optional
+            Fit model used by wire-scan analysis. If omitted, uses the
+            instance default ``self.fitting_method``.
+
+        Returns
+        -------
+        WireMeasurementAnalysisResult
+            Fit results, RMS beam sizes, and organized profile data.
+
+        Raises
+        ------
+        RuntimeError
+            If no collection data is available. Run ``measure()`` first.
+        """
+        if self.collection_result is None:
+            msg = (
+                "No collection_result available. "
+                "Run measure() before analyze()."
+            )
+            raise RuntimeError(msg)
 
         analysis = WireMeasurementAnalysis(
-            collection_result=collection_result,
+            collection_result=self.collection_result,
             fitting_method=fitting_method,
         )
         return analysis.analyze()
