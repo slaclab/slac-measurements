@@ -24,7 +24,7 @@ class order(optimize.Parameter):
         return 0
 
     @staticmethod
-    def denormalize(n, x, y):
+    def scale(n, x, y):
         return n
 
 

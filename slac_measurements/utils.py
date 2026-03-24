@@ -67,4 +67,14 @@ def collect_with_size_check(
     )
 
 
+def wait_until(condition, timeout=10, period=0.1) -> bool:
+    # Returns True if condition met within timeout
+    start = time.time()
+    while time.time() - start < timeout:
+        if condition():
+            return True
+        time.sleep(period)
+    return False
+
+
 NDArrayAnnotatedType = Annotated[np.ndarray, BeforeValidator(ensure_numpy_array)]
