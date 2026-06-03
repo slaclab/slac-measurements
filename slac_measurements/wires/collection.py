@@ -109,8 +109,8 @@ class BaseWireMeasurementCollection(
     def _create_device_dictionary(self) -> dict:
         """Create dictionary of required devices. Includes the wire device and detectors."""
 
-        def _instantiate_device(name: str, area: str):
-            """Instantiate a single device by name and area."""
+        def _instantiate_device(name: str):
+            """Instantiate a single device by name."""
 
             import slac_devices.reader
             import slac_measurements.tmit_loss
@@ -122,25 +122,7 @@ class BaseWireMeasurementCollection(
                     beampath=self.beampath,
                 )
 
-            create_by_prefix = {
-                "LBLM": slac_devices.reader.create_lblm,
-                "PMT": slac_devices.reader.create_pmt,
-            }
-
-            creator = next(
-                (
-                    f
-                    for prefix, f in create_by_prefix.items()
-                    if name.startswith(prefix)
-                ),
-                None,
-            )
-
-            if creator is None:
-                self.logger.warning("Unknown device type '%s'. Skipping.", name)
-                return None
-
-            device = creator(area=area, name=name)
+            device = slac_devices.reader.create_device(name)
             if device is None:
                 self.logger.warning("Device creation for %s returned None.", name)
 
@@ -151,8 +133,8 @@ class BaseWireMeasurementCollection(
         devices = {self.beam_profile_device.name: self.beam_profile_device}
 
         for ds in self.beam_profile_device.metadata.detectors:
-            name, area = ds.split(":")
-            detector = _instantiate_device(name, area)
+            name = ds.split(":")[0]
+            detector = _instantiate_device(name)
             if detector is not None:
                 devices[name] = detector
 
