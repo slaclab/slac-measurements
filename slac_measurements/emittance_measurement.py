@@ -86,6 +86,7 @@ class EmittanceMeasurementResult(slac_measurements.BaseModel):
     emittance: NDArrayAnnotatedType
     geometric_emittance: NDArrayAnnotatedType
     bmag: Optional[NDArrayAnnotatedType] = None
+    phase_advances: Optional[NDArrayAnnotatedType] = None
     twiss: NDArrayAnnotatedType
     twiss_at_reconstruction: NDArrayAnnotatedType
     rmats: Optional[NDArrayAnnotatedType] = None
@@ -525,6 +526,7 @@ class QuadScanEmittance(Measurement):
                 "twiss_at_reconstruction": [],
                 "beam_matrix": [],
                 "bmag": [] if twiss_betas_alphas is not None else None,
+                "phase_advances": [] if twiss_betas_alphas is not None else None,
                 "quadrupole_focusing_strengths": [],
                 "quadrupole_pv_values": [],
                 "rms_beamsizes": [],
@@ -888,6 +890,7 @@ def compute_emit_bmag_quad_scan_machine_units(
         "twiss": [],
         "beam_matrix": [],
         "bmag": [] if twiss_design is not None else None,
+        "phase_advances": [] if twiss_design is not None else None,
         "quadrupole_focusing_strengths": [],
         "quadrupole_pv_values": [],
         "rms_beamsizes": [],

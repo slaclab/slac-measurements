@@ -51,6 +51,8 @@ def compute_emit_bmag(
           fit results for each plane in mm-mrad.
         - 'bmag': numpy.ndarray of shape (batchshape x n_steps) containing the bmag corresponding
           to each point in each plane.
+        - 'phase_advances': numpy.ndarray of shape (batchshape x n_steps) containing the phase advances
+          at each point in each plane.
         - 'beam_matrix': numpy.ndarray of shape (batchshape x 3) containing [sig11, sig12, sig22]
           where sig11, sig12, sig22 are the reconstructed beam matrix parameters at the entrance
           of the measurement quad.
@@ -200,7 +202,7 @@ def compute_emit_bmag(
     )
     # shapes batchshape x nsteps
 
-    # compute bmag if twiss_design is provided
+    # compute bmag and phase advances if twiss_design is provided
     if twiss_design is not None:
         beta_design, alpha_design = (
             twiss_design[..., 0],
@@ -212,8 +214,11 @@ def compute_emit_bmag(
         rv["bmag"] = bmag_func(
             beta, alpha, beta_design, alpha_design
         )  # result batchshape x nsteps
+
+        rv["phase_advances"] = np.arctan(r12/(beta_design*r11 - alpha_design*r12))
     else:
         rv["bmag"] = None
+        rv["phase_advances"] = None
 
     return rv
 
