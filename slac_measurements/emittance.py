@@ -56,7 +56,7 @@ def compute_emit_bmag(
         - 'beam_matrix': numpy.ndarray of shape (batchshape x 3) containing [sig11, sig12, sig22]
           where sig11, sig12, sig22 are the reconstructed beam matrix parameters at the entrance
           of the measurement quad.
-        - 'twiss_at_reconstruction': numpy.ndarray of shape (batchshape x nsteps x 3) containing the
+        - 'twiss_at_reconstruction': numpy.ndarray of shape (batchshape x 1 x 3) containing the
           reconstructed twiss parameters at the reference point (e.g. right before the quad in a quad 
           scan or at the reference beam profile device in a multi measurement).
         - 'twiss': numpy.ndarray of shape (batchshape x nsteps x 3) containing the
@@ -192,6 +192,12 @@ def compute_emit_bmag(
 
     # get twiss params from beam matrix
     rv["twiss_at_reconstruction"] = _twiss_from_beam_matrix(rv["beam_matrix"])
+    # result shape (batchshape x 1 x 3)
+    beta_at_reconstruction, alpha_at_reconstruction = (
+        rv["twiss_at_reconstruction"][..., 0],
+        rv["twiss_at_reconstruction"][..., 1],
+    )
+    # shapes batchshape x 1
     
     # propagate twiss params to beam profile device (expand_dims for broadcasting)
     rv["twiss"] = propagate_twiss(_twiss_from_beam_matrix(rv["beam_matrix"]), rmat)
@@ -212,8 +218,8 @@ def compute_emit_bmag(
 
         # result batchshape x 3 containing [beta, alpha, gamma]
         rv["bmag"] = bmag_func(
-            beta, alpha, beta_design, alpha_design
-        )  # result batchshape x nsteps
+            beta_at_reconstruction, alpha_at_reconstruction, beta_design, alpha_design
+        )  # result batchshape x 1
 
         rv["phase_advances"] = np.arctan(r12/(beta_design*r11 - alpha_design*r12))
     else:
