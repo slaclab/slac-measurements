@@ -24,6 +24,7 @@ class WireBeamProfileMeasurement(slac_measurements.beam_profile.BeamProfileMeasu
         scan_mode: ScanMode = "otf",
         fitting_method: FittingMethod = "gaussian",
         rms_detector: Optional[str] = None,
+        jitter_correction: bool = False,
     ) -> WireMeasurementAnalysisResult:
         """
         Run a wire scan and return the analyzed result.
@@ -33,6 +34,8 @@ class WireBeamProfileMeasurement(slac_measurements.beam_profile.BeamProfileMeasu
         scan_mode : "otf" (default) or "step".
         fitting_method : "gaussian" (default), "asymmetric_gaussian", or "super_gaussian".
         rms_detector : Detector for RMS sizes; defaults to the collection metadata default.
+        jitter_correction : If True, apply orbit-fit jitter correction during analysis.
+            Requires jitter_correction_bpms defined in wire metadata.
         """
 
         collection = create_wire_collection(
@@ -41,8 +44,12 @@ class WireBeamProfileMeasurement(slac_measurements.beam_profile.BeamProfileMeasu
             beampath=self.beampath,
         )
         self.collection_result = collection.measure()
+
         analysis = WireMeasurementAnalysis(
             collection_result=self.collection_result,
             fitting_method=fitting_method,
         )
-        return analysis.analyze(rms_detector=rms_detector)
+        return analysis.analyze(
+            rms_detector=rms_detector,
+            jitter_correction=jitter_correction,
+        )

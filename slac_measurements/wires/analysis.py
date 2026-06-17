@@ -1,12 +1,14 @@
 import importlib
 import numpy as np
-from pydantic import ConfigDict
+from pydantic import ConfigDict, PrivateAttr
 from scipy.ndimage import median_filter
 from skimage.filters import threshold_triangle
 import warnings
 from typing import Literal
 
 import slac_measurements.beam_profile
+from slac_measurements.wires.coordinates import stage_to_beam, beam_to_stage
+from slac_measurements.wires.jitter_correction import compute_jitter
 from slac_measurements.wires.analysis_results import (
     DetectorFit,
     DetectorProfileMeasurement,
@@ -32,8 +34,15 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
     fitting_method: FittingMethod = "gaussian"
+    _jitter_x: np.ndarray | None = PrivateAttr(default=None)
+    _jitter_y: np.ndarray | None = PrivateAttr(default=None)
 
-    def analyze(self, rms_detector: str | None = None) -> WireMeasurementAnalysisResult:
+    def analyze(
+        self,
+        rms_detector: str | None = None,
+        jitter_correction: bool = False,
+        physics_model: str = "BLEM",
+    ) -> WireMeasurementAnalysisResult:
         """
         Fit profiles and extract RMS beam sizes.
 
@@ -42,12 +51,23 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
         rms_detector : str, optional
             Detector used for RMS extraction; defaults to
             ``collection_result.metadata.default_detector``.
+        jitter_correction : bool
+            If True, compute orbit-fit jitter correction from BPM data
+            and subtract per-profile in beam coordinates before fitting.
+        physics_model : str
+            Model source for R-matrix retrieval. Default "BLEM".
 
         Returns
         -------
         WireMeasurementAnalysisResult
             Fit results, RMS sizes, and organized profile data.
         """
+
+        if jitter_correction:
+            beampath = self.collection_result.metadata.beampath
+            self._jitter_x, self._jitter_y = compute_jitter(
+                self.collection_result, beampath, physics_model
+            )
 
         profile_indices = self._get_profile_range_indices()
         profile_measurements = self._organize_data_by_profile(profile_indices)
@@ -62,12 +82,22 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
             rms_detector if rms_detector is not None else metadata.default_detector
         )
 
+        jitter_rms = None
+        if jitter_correction and self._jitter_x is not None:
+            jitter_rms = (
+                float(np.std(self._jitter_x)),
+                float(np.std(self._jitter_y)),
+            )
+
         return WireMeasurementAnalysisResult(
             fit_result=fit_result,
             rms_sizes=rms_sizes,
             collection_result=self.collection_result,
             metadata=metadata,
             profiles=profile_measurements,
+            fitting_method=self.fitting_method,
+            jitter_corrected=jitter_correction,
+            jitter_rms=jitter_rms,
         )
 
     def _create_detector_measurement(
@@ -109,13 +139,9 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
             profile: str, positions: np.ndarray
         ) -> np.ndarray:
             """Convert stage positions to beam coordinates for a given profile."""
-            scale = _extract_wire_angle()
-            return positions * abs(scale[profile])
-
-        def _extract_wire_angle() -> dict:
-            """Extract the wire install angle (in radians) for coordinate conversion."""
-            rad = np.deg2rad(self.collection_result.metadata.install_angle)
-            return {"x": np.sin(rad), "y": np.cos(rad), "u": 1.0}
+            return stage_to_beam(
+                positions, profile, self.collection_result.metadata.install_angle
+            )
 
         def _fit_detector_in_profile(
             x_beam: np.ndarray, detector_signal: np.ndarray, profile: str
@@ -137,8 +163,9 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
                 fp = fitting_module.fit(pos=peak_window[0], data=peak_window[1])
 
             # Convert mean from beam coordinates back to stage coordinates
-            scale = _extract_wire_angle()
-            mean_stage = fp["mean"] / abs(scale[profile])
+            mean_stage = beam_to_stage(
+                fp["mean"], profile, self.collection_result.metadata.install_angle
+            )
 
             # Generate fit curve (in beam coordinates)
             # Build kwargs dynamically to handle different fit types
@@ -213,6 +240,11 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
         x_stage = profile_data.positions
         x_beam = _convert_stage_to_beam_coords(profile, x_stage)
 
+        if self._jitter_x is not None:
+            x_beam = self._apply_jitter_correction(
+                x_beam, profile, profile_data.profile_indices
+            )
+
         detector_fits = {}
         for detector_name in detectors:
             if detector_name not in profile_data.detectors:
@@ -223,6 +255,30 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
             )
 
         return FitResult(detectors=detector_fits)
+
+    def _apply_jitter_correction(
+        self, x_beam: np.ndarray, profile: str, indices: np.ndarray
+    ) -> np.ndarray:
+        """Subtract per-pulse beam jitter in beam coordinates.
+
+        Matches the legacy MATLAB behavior: jitter is subtracted after
+        stage-to-beam conversion, so x-profile subtracts jitter_x and
+        y-profile subtracts jitter_y directly in beam-space (um).
+        """
+        if self._jitter_x is None or self._jitter_y is None:
+            return x_beam
+
+        jx = self._jitter_x[indices]
+        jy = self._jitter_y[indices]
+
+        if profile == "x":
+            return x_beam - jx
+        elif profile == "y":
+            return x_beam - jy
+        else:
+            install_angle = self.collection_result.metadata.install_angle
+            rad = np.radians(install_angle)
+            return x_beam - (jx * np.sin(rad) + jy * np.cos(rad))
 
     @staticmethod
     def _get_monotonic_indices(

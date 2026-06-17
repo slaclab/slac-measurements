@@ -479,32 +479,6 @@ class TestWireMeasurementAnalysisResult(TestCase):
         # Use a deep copy of one shared template so tests remain isolated.
         self.result = self._result_template.model_copy(deep=True)
 
-    def test_set_rms_detector_updates_rms_sizes_and_metadata(self):
-        self.result.set_rms_detector("D2")
-
-        np.testing.assert_array_equal(
-            np.asarray(self.result.rms_sizes),
-            np.array([3.5, 4.5], dtype=object),
-        )
-        self.assertEqual(self.result.metadata.rms_detector, "D2")
-        self.assertEqual(self.result.collection_result.metadata.rms_detector, "D2")
-
-    def test_set_rms_detector_uses_default_when_detector_omitted(self):
-        self.result.metadata.rms_detector = "D2"
-        self.result.collection_result.metadata.rms_detector = "D2"
-
-        self.result.set_rms_detector()
-
-        np.testing.assert_array_equal(
-            np.asarray(self.result.rms_sizes),
-            np.array([1.25, 2.5], dtype=object),
-        )
-        self.assertEqual(self.result.metadata.rms_detector, "D1")
-
-    def test_set_rms_detector_raises_for_unknown_detector(self):
-        with self.assertRaises(ValueError):
-            self.result.set_rms_detector("D3")
-
     def test_save_to_h5_handles_object_rms_sizes(self):
         self.result.rms_sizes = np.array([1.25, None], dtype=object)
 

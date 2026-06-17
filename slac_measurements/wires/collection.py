@@ -4,10 +4,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-import numpy as np
-from pydantic import model_validator
 from typing_extensions import Self
 
+from pydantic import model_validator
 from slac_devices.wire import Wire
 from slac_timing import Buffer
 import slac_measurements.beam_profile
@@ -125,6 +124,7 @@ class BaseWireMeasurementCollection(
             create_by_prefix = {
                 "LBLM": slac_devices.reader.create_lblm,
                 "PMT": slac_devices.reader.create_pmt,
+                "BPM": slac_devices.reader.create_bpm,
             }
 
             creator = next(
@@ -155,6 +155,15 @@ class BaseWireMeasurementCollection(
             detector = _instantiate_device(name, area)
             if detector is not None:
                 devices[name] = detector
+
+        # Add jitter correction BPMs if defined
+        jitter_bpm_names = self.beam_profile_device.metadata.jitter_bpms
+        if jitter_bpm_names:
+            area = self.beam_profile_device.area
+            for name in jitter_bpm_names:
+                bpm = _instantiate_device(name, area)
+                if bpm is not None:
+                    devices[name] = bpm
 
         self.logger.info("Device dictionary built.")
         return devices
@@ -214,17 +223,25 @@ class BaseWireMeasurementCollection(
                 return "fast_buffer"
             elif device_name.startswith("PMT"):
                 return "qdcraw_buffer"
+            elif device_name.startswith("BPM"):
+                return "bpm_buffer"
             else:
                 return None
 
-        def _collect_device_data(device_name: str) -> np.ndarray:
-            """Collect data for a given device using the appropriate method."""
+        def _collect_device_data(device_name: str):
+            """Collect data for a given device."""
 
             device = self.devices[device_name]
             buffer_method = _get_buffer_collection_method(device_name)
 
             if buffer_method is None:
                 return device.measure()
+
+            if buffer_method == "bpm_buffer":
+                return {
+                    "x": device.x_buffer(self.buffer, retries=3, retry_delay=3.0),
+                    "y": device.y_buffer(self.buffer, retries=3, retry_delay=3.0),
+                }
 
             return getattr(device, buffer_method)(
                 self.buffer, retries=3, retry_delay=3.0
