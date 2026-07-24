@@ -58,7 +58,7 @@ def _make_analysis_result(
 
     metadata = MeasurementMetadata(
         wire_name="WIRE:LI21:285",
-        area="LI21",
+        area="TEST",
         beampath="CU_HXR",
         detectors=["PMT:LI21:100", "PMT:LI21:200"],
         default_detector="PMT:LI21:100",

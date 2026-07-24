@@ -98,6 +98,26 @@ def _build_name_map(mad_names: list[str]) -> dict[str, str]:
     return name_map
 
 
+def _get_sector_pmt_list(area: str) -> list[str]:
+    """Get the full PMT/detector list for a sector from wire_area_metadata.yaml."""
+    try:
+        import slac_db.config
+
+        import yaml
+
+        meta_path = slac_db.config.package_data() / "wire_area_metadata.yaml"
+        if not meta_path.exists():
+            return []
+        with open(meta_path) as f:
+            area_meta = yaml.safe_load(f)
+        if area in area_meta and "detectors" in area_meta[area]:
+            # Format is "PMT29150:LI29" — take the MAD name before the colon
+            return [d.split(":")[0] for d in area_meta[area]["detectors"]]
+    except Exception:
+        pass
+    return []
+
+
 def analysis_result_to_mat(
     result: WireMeasurementAnalysisResult,
     filepath: str,
@@ -192,7 +212,17 @@ def analysis_result_to_mat(
     # --- Device lists and raw data ---
     pmt_keys, bpm_keys, toro_keys = _classify_raw_data_keys(raw_data, metadata)
 
-    pmt_epics = [_epics(k) for k in pmt_keys]
+    # Get the full sector PMT list so indices match the GUI dropdown.
+    full_pmt_keys = _get_sector_pmt_list(metadata.area)
+    if full_pmt_keys:
+        # Reorder pmt_keys to match sector order, pad missing with None
+        collected_set = set(pmt_keys)
+        pmt_keys_ordered = full_pmt_keys
+    else:
+        pmt_keys_ordered = pmt_keys
+        collected_set = set(pmt_keys)
+
+    pmt_epics = [_epics(k) for k in pmt_keys_ordered]
     bpm_epics = [_epics(k) for k in bpm_keys]
     toro_epics = [_epics(k) for k in toro_keys]
 
@@ -224,25 +254,27 @@ def analysis_result_to_mat(
 
     n_pulses = data["wireData"].shape[1]
 
-    if pmt_keys:
+    if pmt_keys_ordered:
         pmt_arrays = []
-        for key in pmt_keys:
-            arr = np.asarray(
-                raw_data.get(key, np.zeros(len(inverse))), dtype=np.float64
-            ).ravel()
-            if len(inverse) > 0 and len(arr) == len(inverse):
-                # Average signal at duplicate positions
-                deduped = np.zeros(n_pulses, dtype=np.float64)
-                counts = np.zeros(n_pulses, dtype=np.float64)
-                np.add.at(deduped, inverse, arr)
-                np.add.at(counts, inverse, 1.0)
-                counts[counts == 0] = 1.0
-                pmt_arrays.append(deduped / counts)
+        for key in pmt_keys_ordered:
+            if key in collected_set:
+                arr = np.asarray(
+                    raw_data.get(key, np.zeros(len(inverse))), dtype=np.float64
+                ).ravel()
+                if len(inverse) > 0 and len(arr) == len(inverse):
+                    deduped = np.zeros(n_pulses, dtype=np.float64)
+                    counts = np.zeros(n_pulses, dtype=np.float64)
+                    np.add.at(deduped, inverse, arr)
+                    np.add.at(counts, inverse, 1.0)
+                    counts[counts == 0] = 1.0
+                    pmt_arrays.append(deduped / counts)
+                else:
+                    pmt_arrays.append(
+                        arr[:n_pulses] if len(arr) >= n_pulses else np.zeros(n_pulses)
+                    )
             else:
-                pmt_arrays.append(
-                    arr[:n_pulses] if len(arr) >= n_pulses else np.zeros(n_pulses)
-                )
-        data["PMTData"] = np.array(pmt_arrays).reshape(len(pmt_keys), n_pulses)
+                pmt_arrays.append(np.zeros(n_pulses, dtype=np.float64))
+        data["PMTData"] = np.array(pmt_arrays).reshape(len(pmt_keys_ordered), n_pulses)
     else:
         data["PMTData"] = np.zeros((1, n_pulses), dtype=np.float64)
 
@@ -340,9 +372,9 @@ def analysis_result_to_mat(
     data["pos"] = pos
     data["signal"] = signal
 
-    if default_det and metadata.detectors:
+    if default_det and pmt_keys_ordered:
         try:
-            data["selectPMT"] = np.float64(metadata.detectors.index(default_det) + 1)
+            data["selectPMT"] = np.float64(pmt_keys_ordered.index(default_det) + 1)
         except ValueError:
             data["selectPMT"] = np.float64(1.0)
     else:
