@@ -103,8 +103,11 @@ def _get_sector_pmt_list(area: str) -> list[str]:
     import pathlib
 
     # Try wirescan_config.json (authoritative for the MATLAB GUI dropdown)
+    import os
+
     config_locations = [
         pathlib.Path("/usr/local/lcls/tools/matlab/toolbox/wirescan_config.json"),
+        pathlib.Path(os.environ.get("MATLABPATH", "")) / "wirescan_config.json",
         pathlib.Path.home() / "Documents" / "toolbox" / "wirescan_config.json",
     ]
     for config_path in config_locations:
