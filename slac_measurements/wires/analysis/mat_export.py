@@ -99,20 +99,41 @@ def _build_name_map(mad_names: list[str]) -> dict[str, str]:
 
 
 def _get_sector_pmt_list(area: str) -> list[str]:
-    """Get the full PMT/detector list for a sector from wire_area_metadata.yaml."""
+    """Get the full PMT/detector list for a sector from wirescan_config.json."""
+    import pathlib
+
+    # Try wirescan_config.json (authoritative for the MATLAB GUI dropdown)
+    config_locations = [
+        pathlib.Path("/usr/local/lcls/tools/matlab/toolbox/wirescan_config.json"),
+        pathlib.Path.home() / "Documents" / "toolbox" / "wirescan_config.json",
+    ]
+    for config_path in config_locations:
+        if config_path.exists():
+            try:
+                import json
+
+                with open(config_path) as f:
+                    cfg = json.load(f)
+                sectors = cfg.get("sectors", {})
+                if isinstance(sectors, dict) and area in sectors:
+                    pmt_list = sectors[area].get("PMTMADList", [])
+                    if pmt_list:
+                        return pmt_list
+            except Exception:
+                continue
+
+    # Fallback: wire_area_metadata.yaml from slac_db
     try:
         import slac_db.config
 
         import yaml
 
         meta_path = slac_db.config.package_data() / "wire_area_metadata.yaml"
-        if not meta_path.exists():
-            return []
-        with open(meta_path) as f:
-            area_meta = yaml.safe_load(f)
-        if area in area_meta and "detectors" in area_meta[area]:
-            # Format is "PMT29150:LI29" — take the MAD name before the colon
-            return [d.split(":")[0] for d in area_meta[area]["detectors"]]
+        if meta_path.exists():
+            with open(meta_path) as f:
+                area_meta = yaml.safe_load(f)
+            if area in area_meta and "detectors" in area_meta[area]:
+                return [d.split(":")[0] for d in area_meta[area]["detectors"]]
     except Exception:
         pass
     return []
