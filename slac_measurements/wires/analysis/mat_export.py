@@ -5,11 +5,25 @@ Produces files compatible with the MATLAB wirescan_gui (File > Open).
 
 from __future__ import annotations
 
+import json
+import os
+import pathlib
+import warnings
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import scipy.io
+import yaml
+
+try:
+    import slac_db.config
+
+    _SLAC_DB_YAML: str | None = slac_db.config.yaml()
+    _SLAC_DB_PACKAGE_DATA: pathlib.Path | None = slac_db.config.package_data()
+except (ImportError, Exception):
+    _SLAC_DB_YAML = None
+    _SLAC_DB_PACKAGE_DATA = None
 
 if TYPE_CHECKING:
     from slac_measurements.wires.analysis.results import (
@@ -50,13 +64,7 @@ def _dedup_array(raw: np.ndarray, inverse: np.ndarray, n_out: int) -> np.ndarray
 
 def _build_name_map(mad_names: list[str]) -> dict[str, str]:
     """Build MAD→EPICS name map from slac_db YAML device configs."""
-    import warnings
-
-    try:
-        import slac_db.config
-
-        yaml_dir = slac_db.config.yaml()
-    except (ImportError, Exception):
+    if _SLAC_DB_YAML is None:
         warnings.warn(
             "slac_db not available; MAD names will not be converted to EPICS. "
             "Pass name_map explicitly to to_mat().",
@@ -64,14 +72,10 @@ def _build_name_map(mad_names: list[str]) -> dict[str, str]:
         )
         return {}
 
-    import pathlib
-
-    import yaml
-
     mad_set = set(mad_names)
     name_map: dict[str, str] = {}
 
-    yaml_path = pathlib.Path(yaml_dir)
+    yaml_path = pathlib.Path(_SLAC_DB_YAML)
     if not yaml_path.is_dir():
         warnings.warn(
             f"slac_db YAML directory not found: {yaml_path}. "
@@ -137,10 +141,6 @@ def _build_auto_name_map(metadata: Any, raw_data: dict) -> dict[str, str]:
 
 def _load_wirescan_config() -> dict | None:
     """Load wirescan_config.json from known locations."""
-    import json
-    import os
-    import pathlib
-
     config_locations = [
         pathlib.Path("/usr/local/lcls/tools/matlab/toolbox/wirescan_config.json"),
         pathlib.Path(os.environ.get("MATLABPATH", "")) / "wirescan_config.json",
@@ -181,19 +181,13 @@ def _get_sector_pmt_list(area: str, cfg: dict | None = None) -> list[str]:
             if pmt_list:
                 return pmt_list
 
-    try:
-        import slac_db.config
-
-        import yaml
-
-        meta_path = slac_db.config.package_data() / "wire_area_metadata.yaml"
+    if _SLAC_DB_PACKAGE_DATA is not None:
+        meta_path = _SLAC_DB_PACKAGE_DATA / "wire_area_metadata.yaml"
         if meta_path.exists():
             with open(meta_path) as f:
                 area_meta = yaml.safe_load(f)
             if area in area_meta and "detectors" in area_meta[area]:
                 return [d.split(":")[0] for d in area_meta[area]["detectors"]]
-    except Exception:
-        pass
     return []
 
 
