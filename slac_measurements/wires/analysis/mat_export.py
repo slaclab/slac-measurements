@@ -482,18 +482,23 @@ def _fetch_rmat_list(
 
     try:
         from meme.model import Model
-    except ImportError:
-        return np.zeros((4, 6, n_bpm), dtype=np.float64)
 
-    model = Model(beampath, model_source="BLEM", use_design=False)
-    slabs = []
-    for bpm in bpm_keys:
-        try:
-            rmat = model.get_rmat(from_device=wire_name, to_device=bpm)
-            slabs.append(rmat[:4, :6].astype(np.float64))
-        except Exception:
-            slabs.append(np.zeros((4, 6), dtype=np.float64))
-    return np.stack(slabs, axis=2)
+        model = Model(beampath, model_source="BLEM", use_design=False)
+        slabs = []
+        for bpm in bpm_keys:
+            try:
+                rmat = model.get_rmat(from_device=wire_name, to_device=bpm)
+                slabs.append(rmat[:4, :6].astype(np.float64))
+            except Exception:
+                slabs.append(np.zeros((4, 6), dtype=np.float64))
+        return np.stack(slabs, axis=2)
+    except Exception:
+        warnings.warn(
+            "Could not fetch R-matrices from model; jitter correction "
+            "will not work in the MATLAB GUI for this file.",
+            stacklevel=2,
+        )
+        return np.zeros((4, 6, n_bpm), dtype=np.float64)
 
 
 # ---------------------------------------------------------------------------
