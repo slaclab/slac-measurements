@@ -469,6 +469,33 @@ def _build_beam_pv(wire_name: str, beam: np.ndarray) -> np.ndarray:
     return pv_array
 
 
+def _fetch_rmat_list(
+    wire_name: str, bpm_keys: list[str], beampath: str | None
+) -> np.ndarray:
+    """Fetch R-matrices from wire to each BPM via meme.model.
+
+    Returns shape (4, 6, n_bpm). Falls back to zeros on failure.
+    """
+    n_bpm = len(bpm_keys)
+    if not bpm_keys or not beampath:
+        return np.zeros((4, 6, n_bpm), dtype=np.float64)
+
+    try:
+        from meme.model import Model
+    except ImportError:
+        return np.zeros((4, 6, n_bpm), dtype=np.float64)
+
+    model = Model(beampath, model_source="BLEM", use_design=False)
+    slabs = []
+    for bpm in bpm_keys:
+        try:
+            rmat = model.get_rmat(from_device=wire_name, to_device=bpm)
+            slabs.append(rmat[:4, :6].astype(np.float64))
+        except Exception:
+            slabs.append(np.zeros((4, 6), dtype=np.float64))
+    return np.stack(slabs, axis=2)
+
+
 # ---------------------------------------------------------------------------
 # Main export function
 # ---------------------------------------------------------------------------
@@ -602,7 +629,7 @@ def analysis_result_to_mat(
             if n_bpm
             else np.zeros((1, 0), dtype=np.float64)
         ),
-        "rMatList": np.zeros((4, 6, n_bpm), dtype=np.float64),
+        "rMatList": _fetch_rmat_list(metadata.wire_name, bpm_keys, metadata.beampath),
         "pos": pos,
         "signal": signal,
         "selectPMT": select_pmt,
