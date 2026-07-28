@@ -469,31 +469,6 @@ def _build_beam_pv(wire_name: str, beam: np.ndarray) -> np.ndarray:
     return pv_array
 
 
-def _fetch_rmat(
-    wire_name: str,
-    bpm_keys: list[str],
-    beampath: str | None,
-    physics_model: str,
-) -> np.ndarray:
-    """Fetch R-matrices from the optics model (requires network)."""
-    from lcls_tools.common.devices.reader import create_wire
-
-    device = create_wire(wire_name)
-    rmat_list = []
-    for bpm in bpm_keys:
-        try:
-            rmat = device.get_rmat(bpm, model=physics_model)
-            rmat_list.append(rmat[:4, :6])
-        except Exception:
-            rmat_list.append(np.zeros((4, 6), dtype=np.float64))
-
-    return (
-        np.stack(rmat_list, axis=2)
-        if rmat_list
-        else np.zeros((4, 6, 0), dtype=np.float64)
-    )
-
-
 # ---------------------------------------------------------------------------
 # Main export function
 # ---------------------------------------------------------------------------
@@ -504,8 +479,6 @@ def analysis_result_to_mat(
     filepath: str,
     *,
     name_map: dict[str, str] | None = None,
-    include_rmat: bool = False,
-    physics_model: str = "BLEM",
 ) -> str:
     """Export a WireMeasurementAnalysisResult as a MATLAB .mat file.
 
@@ -522,10 +495,6 @@ def analysis_result_to_mat(
     name_map : dict[str, str], optional
         Mapping from MAD names to EPICS names.  If None, attempts auto-lookup
         via ``slac_db``; falls back to using MAD names unchanged.
-    include_rmat : bool
-        Whether to fetch R-matrices from the optics model.  Default False.
-    physics_model : str
-        Model source for R-matrix retrieval.  Default ``"BLEM"``.
 
     Returns
     -------
@@ -563,17 +532,7 @@ def analysis_result_to_mat(
     bpm_epics = [_epics(k) for k in bpm_keys]
     toro_epics = [_epics(k) for k in toro_keys] if toro_keys else None
 
-    # --- R-matrices ---
     n_bpm = len(bpm_keys)
-    if include_rmat and bpm_keys:
-        try:
-            rmat = _fetch_rmat(
-                metadata.wire_name, bpm_keys, metadata.beampath, physics_model
-            )
-        except Exception:
-            rmat = np.zeros((4, 6, n_bpm), dtype=np.float64)
-    else:
-        rmat = np.zeros((4, 6, n_bpm), dtype=np.float64)
 
     # --- Profiles ---
     pos, signal = _build_profiles(result, metadata)
@@ -643,7 +602,7 @@ def analysis_result_to_mat(
             if n_bpm
             else np.zeros((1, 0), dtype=np.float64)
         ),
-        "rMatList": rmat,
+        "rMatList": np.zeros((4, 6, n_bpm), dtype=np.float64),
         "pos": pos,
         "signal": signal,
         "selectPMT": select_pmt,
