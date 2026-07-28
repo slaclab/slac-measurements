@@ -247,6 +247,10 @@ def analysis_result_to_mat(
     full_pmt_keys = _get_sector_pmt_list(metadata.area)
     if full_pmt_keys:
         pmt_keys_ordered = full_pmt_keys
+        # Ensure name_map covers config-only detectors (e.g. PMT28750)
+        unmapped = [k for k in full_pmt_keys if k not in name_map]
+        if unmapped:
+            name_map.update(_build_name_map(unmapped))
     else:
         pmt_keys_ordered = pmt_keys
         base_to_collected = {k: k for k in pmt_keys}
