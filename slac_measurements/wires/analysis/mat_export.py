@@ -98,12 +98,11 @@ def _build_name_map(mad_names: list[str]) -> dict[str, str]:
     return name_map
 
 
-def _get_sector_pmt_list(area: str) -> list[str]:
-    """Get the full PMT/detector list for a sector from wirescan_config.json."""
-    import pathlib
-
-    # Try wirescan_config.json (authoritative for the MATLAB GUI dropdown)
+def _load_wirescan_config() -> dict | None:
+    """Load wirescan_config.json from known locations."""
+    import json
     import os
+    import pathlib
 
     config_locations = [
         pathlib.Path("/usr/local/lcls/tools/matlab/toolbox/wirescan_config.json"),
@@ -113,17 +112,38 @@ def _get_sector_pmt_list(area: str) -> list[str]:
     for config_path in config_locations:
         if config_path.exists():
             try:
-                import json
-
                 with open(config_path) as f:
-                    cfg = json.load(f)
-                sectors = cfg.get("sectors", {})
-                if isinstance(sectors, dict) and area in sectors:
-                    pmt_list = sectors[area].get("PMTMADList", [])
-                    if pmt_list:
-                        return pmt_list
+                    return json.load(f)
             except Exception:
                 continue
+    return None
+
+
+def _wire_to_sector(wire_mad: str, cfg: dict | None) -> str | None:
+    """Look up which MATLAB GUI sector a wire belongs to."""
+    if cfg is None:
+        return None
+    sectors = cfg.get("sectors", {})
+    for sector_name, sector_data in sectors.items():
+        if not isinstance(sector_data, dict):
+            continue
+        wire_list = sector_data.get("wireMADList", [])
+        if wire_mad in wire_list:
+            return sector_name
+    return None
+
+
+def _get_sector_pmt_list(area: str, cfg: dict | None = None) -> list[str]:
+    """Get the full PMT/detector list for a sector from wirescan_config.json."""
+    if cfg is None:
+        cfg = _load_wirescan_config()
+
+    if cfg is not None:
+        sectors = cfg.get("sectors", {})
+        if isinstance(sectors, dict) and area in sectors:
+            pmt_list = sectors[area].get("PMTMADList", [])
+            if pmt_list:
+                return pmt_list
 
     # Fallback: wire_area_metadata.yaml from slac_db
     try:
@@ -245,12 +265,11 @@ def analysis_result_to_mat(
     # lookup from base MAD name → collected (suffixed) name for matching.
     base_to_collected = {k.rsplit(":", 1)[0]: k for k in pmt_keys}
     # metadata.area comes from the device DB (e.g. "L3") which doesn't match
-    # the MATLAB GUI sector names (e.g. "LI28").  Derive sector from the wire
-    # EPICS name (WIRE:LI28:744 → LI28) which always matches the config keys.
-    sector = wire_epics.split(":")[1] if ":" in wire_epics else metadata.area
-    full_pmt_keys = _get_sector_pmt_list(sector)
-    if not full_pmt_keys:
-        full_pmt_keys = _get_sector_pmt_list(metadata.area)
+    # the MATLAB GUI sector names (e.g. "LI28").  Look up the wire's sector
+    # from the config's wireMADList (handles e.g. WS27644 → LI28).
+    cfg = _load_wirescan_config()
+    sector = _wire_to_sector(metadata.wire_name, cfg) or metadata.area
+    full_pmt_keys = _get_sector_pmt_list(sector, cfg)
     if full_pmt_keys:
         pmt_keys_ordered = full_pmt_keys
         # Ensure name_map covers config-only detectors (e.g. PMT28750)
