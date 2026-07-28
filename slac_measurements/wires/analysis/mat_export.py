@@ -244,7 +244,13 @@ def analysis_result_to_mat(
     # while the config uses short MAD names (e.g. "PMT29150").  Build a
     # lookup from base MAD name → collected (suffixed) name for matching.
     base_to_collected = {k.rsplit(":", 1)[0]: k for k in pmt_keys}
-    full_pmt_keys = _get_sector_pmt_list(metadata.area)
+    # metadata.area comes from the device DB (e.g. "L3") which doesn't match
+    # the MATLAB GUI sector names (e.g. "LI28").  Derive sector from the wire
+    # EPICS name (WIRE:LI28:744 → LI28) which always matches the config keys.
+    sector = wire_epics.split(":")[1] if ":" in wire_epics else metadata.area
+    full_pmt_keys = _get_sector_pmt_list(sector)
+    if not full_pmt_keys:
+        full_pmt_keys = _get_sector_pmt_list(metadata.area)
     if full_pmt_keys:
         pmt_keys_ordered = full_pmt_keys
         # Ensure name_map covers config-only detectors (e.g. PMT28750)

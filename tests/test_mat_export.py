@@ -36,7 +36,7 @@ def _make_analysis_result(
     signal_y = np.exp(-0.5 * ((positions_y - 17000) / 300) ** 2)
 
     raw_data = {
-        "WIRE:LI21:285": positions_x,
+        "WIRE:TEST:285": positions_x,
         "PMT:LI21:100": signal_x * 1000,
         "PMT:LI21:200": signal_x * 800,
     }
@@ -57,7 +57,7 @@ def _make_analysis_result(
         scan_ranges["y"] = (15000, 19000)
 
     metadata = MeasurementMetadata(
-        wire_name="WIRE:LI21:285",
+        wire_name="WIRE:TEST:285",
         area="TEST",
         beampath="CU_HXR",
         detectors=["PMT:LI21:100", "PMT:LI21:200"],
@@ -188,8 +188,8 @@ class TestAnalysisResultToMat(TestCase):
     def test_scalar_string_fields(self):
         mat = self._export_and_load()
         data = self._data(mat)
-        self.assertEqual(str(data["name"][0]), "WIRE:LI21:285")
-        self.assertEqual(str(data["wireName"][0]), "WIRE:LI21:285")
+        self.assertEqual(str(data["name"][0]), "WIRE:TEST:285")
+        self.assertEqual(str(data["wireName"][0]), "WIRE:TEST:285")
         self.assertEqual(str(data["wireMode"][0]), "wire")
         self.assertEqual(str(data["beampath"][0]), "CU_HXR")
 
