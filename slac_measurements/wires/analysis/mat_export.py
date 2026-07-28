@@ -190,6 +190,9 @@ def analysis_result_to_mat(
         if metadata.detectors:
             all_mad_names.extend(metadata.detectors)
         all_mad_names.extend(k for k in raw_data.keys() if k != metadata.wire_name)
+        # Also include base MAD names (strip beampath suffix) for lookup
+        base_names = {n.rsplit(":", 1)[0] for n in all_mad_names}
+        all_mad_names = list(set(all_mad_names) | base_names)
         name_map = _build_name_map(all_mad_names)
 
     def _epics(mad_name: str) -> str:
@@ -237,14 +240,16 @@ def analysis_result_to_mat(
     pmt_keys, bpm_keys, toro_keys = _classify_raw_data_keys(raw_data, metadata)
 
     # Get the full sector PMT list so indices match the GUI dropdown.
+    # Python detector names carry a beampath suffix (e.g. "PMT29150:LI29")
+    # while the config uses short MAD names (e.g. "PMT29150").  Build a
+    # lookup from base MAD name → collected (suffixed) name for matching.
+    base_to_collected = {k.rsplit(":", 1)[0]: k for k in pmt_keys}
     full_pmt_keys = _get_sector_pmt_list(metadata.area)
     if full_pmt_keys:
-        # Reorder pmt_keys to match sector order, pad missing with None
-        collected_set = set(pmt_keys)
         pmt_keys_ordered = full_pmt_keys
     else:
         pmt_keys_ordered = pmt_keys
-        collected_set = set(pmt_keys)
+        base_to_collected = {k: k for k in pmt_keys}
 
     pmt_epics = [_epics(k) for k in pmt_keys_ordered]
     bpm_epics = [_epics(k) for k in bpm_keys]
@@ -281,9 +286,11 @@ def analysis_result_to_mat(
     if pmt_keys_ordered:
         pmt_arrays = []
         for key in pmt_keys_ordered:
-            if key in collected_set:
+            collected_key = base_to_collected.get(key)
+            if collected_key:
                 arr = np.asarray(
-                    raw_data.get(key, np.zeros(len(inverse))), dtype=np.float64
+                    raw_data.get(collected_key, np.zeros(len(inverse))),
+                    dtype=np.float64,
                 ).ravel()
                 if len(inverse) > 0 and len(arr) == len(inverse):
                     deduped = np.zeros(n_pulses, dtype=np.float64)
@@ -397,8 +404,11 @@ def analysis_result_to_mat(
     data["signal"] = signal
 
     if default_det and pmt_keys_ordered:
+        default_det_base = (
+            default_det.rsplit(":", 1)[0] if full_pmt_keys else default_det
+        )
         try:
-            data["selectPMT"] = np.float64(pmt_keys_ordered.index(default_det) + 1)
+            data["selectPMT"] = np.float64(pmt_keys_ordered.index(default_det_base) + 1)
         except ValueError:
             data["selectPMT"] = np.float64(1.0)
     else:
