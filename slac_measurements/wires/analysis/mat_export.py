@@ -40,18 +40,6 @@ def datetime_to_matlab_datenum(dt: datetime) -> float:
     return MATLAB_EPOCH_OFFSET + (dt - epoch).total_seconds() / 86400.0
 
 
-def _dedup_array(raw: np.ndarray, inverse: np.ndarray, n_out: int) -> np.ndarray:
-    """Average raw array values at duplicate wire positions."""
-    if len(inverse) > 0 and len(raw) == len(inverse):
-        deduped = np.zeros(n_out, dtype=np.float64)
-        counts = np.zeros(n_out, dtype=np.float64)
-        np.add.at(deduped, inverse, raw)
-        np.add.at(counts, inverse, 1.0)
-        counts[counts == 0] = 1.0
-        return deduped / counts
-    return raw[:n_out] if len(raw) >= n_out else np.zeros(n_out, dtype=np.float64)
-
-
 # ---------------------------------------------------------------------------
 # Name map (MAD → EPICS)
 # ---------------------------------------------------------------------------
@@ -239,26 +227,22 @@ def _resolve_devices(
 
 def _build_wire_data(
     raw_data: dict, wire_key: str
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
-    """Deduplicate wire positions. Returns (wireData, wireMask, inverse, n_pulses)."""
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Extract wire positions. Returns (wireData, wireMask, n_pulses)."""
     if wire_key in raw_data:
-        wire_arr = np.asarray(raw_data[wire_key], dtype=np.float64)
-        unique_pos, inverse = np.unique(wire_arr, return_inverse=True)
-        wire_data = unique_pos.reshape(1, -1)
-        wire_mask = np.ones_like(wire_data, dtype=np.bool_)
+        wire_arr = np.asarray(raw_data[wire_key], dtype=np.float64).reshape(1, -1)
+        wire_mask = np.ones_like(wire_arr, dtype=np.bool_)
     else:
-        inverse = np.array([], dtype=int)
-        wire_data = np.zeros((1, 0), dtype=np.float64)
+        wire_arr = np.zeros((1, 0), dtype=np.float64)
         wire_mask = np.zeros((1, 0), dtype=np.bool_)
 
-    return wire_data, wire_mask, inverse, wire_data.shape[1]
+    return wire_arr, wire_mask, wire_arr.shape[1]
 
 
 def _build_pmt_data(
     raw_data: dict,
     pmt_keys_ordered: list[str],
     base_to_collected: dict[str, str],
-    inverse: np.ndarray,
     n_pulses: int,
 ) -> np.ndarray:
     """Build PMTData array aligned to sector config order."""
@@ -270,9 +254,9 @@ def _build_pmt_data(
         collected_key = base_to_collected.get(key)
         if collected_key:
             arr = np.asarray(
-                raw_data.get(collected_key, np.zeros(len(inverse))), dtype=np.float64
-            ).ravel()
-            rows.append(_dedup_array(arr, inverse, n_pulses))
+                raw_data.get(collected_key, np.zeros(n_pulses)), dtype=np.float64
+            ).ravel()[:n_pulses]
+            rows.append(arr)
         else:
             rows.append(np.zeros(n_pulses, dtype=np.float64))
 
@@ -282,7 +266,6 @@ def _build_pmt_data(
 def _build_bpm_data(
     raw_data: dict,
     bpm_keys: list[str],
-    inverse: np.ndarray,
     n_pulses: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Build BPMXData and BPMYData arrays."""
@@ -297,13 +280,13 @@ def _build_bpm_data(
         bpm_val = raw_data.get(key, {})
         if isinstance(bpm_val, dict):
             raw_x = np.asarray(
-                bpm_val.get("x", np.zeros(len(inverse))), dtype=np.float64
-            ).ravel()
+                bpm_val.get("x", np.zeros(n_pulses)), dtype=np.float64
+            ).ravel()[:n_pulses]
             raw_y = np.asarray(
-                bpm_val.get("y", np.zeros(len(inverse))), dtype=np.float64
-            ).ravel()
-            x_rows.append(_dedup_array(raw_x, inverse, n_pulses))
-            y_rows.append(_dedup_array(raw_y, inverse, n_pulses))
+                bpm_val.get("y", np.zeros(n_pulses)), dtype=np.float64
+            ).ravel()[:n_pulses]
+            x_rows.append(raw_x)
+            y_rows.append(raw_y)
         else:
             x_rows.append(np.zeros(n_pulses, dtype=np.float64))
             y_rows.append(np.zeros(n_pulses, dtype=np.float64))
@@ -317,7 +300,6 @@ def _build_bpm_data(
 def _build_toro_data(
     raw_data: dict,
     toro_keys: list[str],
-    inverse: np.ndarray,
     n_pulses: int,
     area: str,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -326,9 +308,9 @@ def _build_toro_data(
         rows = []
         for key in toro_keys:
             raw_t = np.asarray(
-                raw_data.get(key, np.zeros(len(inverse))), dtype=np.float64
-            ).ravel()
-            rows.append(_dedup_array(raw_t, inverse, n_pulses))
+                raw_data.get(key, np.zeros(n_pulses)), dtype=np.float64
+            ).ravel()[:n_pulses]
+            rows.append(raw_t)
         return np.array(rows).reshape(len(toro_keys), n_pulses), None
 
     # GUI always expects at least one toroid row
@@ -566,16 +548,14 @@ def analysis_result_to_mat(
         metadata, raw_data, name_map
     )
 
-    # --- Wire positions (dedup) ---
-    wire_data, wire_mask, inverse, n_pulses = _build_wire_data(
-        raw_data, metadata.wire_name
-    )
+    # --- Wire positions ---
+    wire_data, wire_mask, n_pulses = _build_wire_data(raw_data, metadata.wire_name)
 
     # --- Raw signal arrays ---
-    pmt_data = _build_pmt_data(raw_data, pmt_ordered, base_map, inverse, n_pulses)
-    bpmx_data, bpmy_data = _build_bpm_data(raw_data, bpm_keys, inverse, n_pulses)
+    pmt_data = _build_pmt_data(raw_data, pmt_ordered, base_map, n_pulses)
+    bpmx_data, bpmy_data = _build_bpm_data(raw_data, bpm_keys, n_pulses)
     toro_data, toro_fallback_list = _build_toro_data(
-        raw_data, toro_keys, inverse, n_pulses, metadata.area
+        raw_data, toro_keys, n_pulses, metadata.area
     )
 
     # --- EPICS name lists ---
