@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 from datetime import datetime
 from tempfile import TemporaryDirectory
@@ -382,6 +384,36 @@ class TestWireMeasurementAnalysisOtherMethods(TestCase):
 
         with self.assertRaises(ValueError):
             analysis._get_rms_sizes({}, detector="D3")
+
+    def test_fit_profile_skips_all_nan_detector_with_warning(self):
+        analysis = self._make_analysis(
+            raw_data={"WIRE": np.array([0.0, 1.0, 2.0])},
+            detectors=["D1"],
+            active_profiles=["x"],
+            scan_ranges={"x": (0, 2)},
+        )
+        profile_measurements = {
+            "x": ProfileMeasurement(
+                positions=np.array([0.0, 1.0, 2.0]),
+                profile_indices=np.array([0, 1, 2]),
+                detectors={
+                    "D1": DetectorProfileMeasurement(
+                        values=np.array([np.nan, np.nan, np.nan]),
+                        units="counts",
+                        label="D1",
+                    )
+                },
+            )
+        }
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = analysis._fit_profile(profile_measurements, "x", ["D1"])
+
+        self.assertEqual(result.detectors, {})
+        self.assertEqual(len(w), 1)
+        self.assertIn("all NaN", str(w[0].message))
+        self.assertIn("D1", str(w[0].message))
 
     def test_analyze_orchestrates_helper_methods_and_returns_result(self):
         analysis = self._make_analysis()
