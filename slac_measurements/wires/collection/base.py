@@ -125,6 +125,7 @@ class BaseWireMeasurementCollection(
                 "LBLM": slac_devices.reader.create_lblm,
                 "PMT": slac_devices.reader.create_pmt,
                 "BPM": slac_devices.reader.create_bpm,
+                "IM": slac_devices.reader.create_toroid,
             }
 
             creator = next(
@@ -164,6 +165,17 @@ class BaseWireMeasurementCollection(
                 bpm = _instantiate_device(name, area)
                 if bpm is not None:
                     devices[name] = bpm
+
+        # Add charge toroid devices if defined
+        charge_toroid_names = self.beam_profile_device.metadata.charge_toroids
+        if charge_toroid_names:
+            area = self.beam_profile_device.area
+            for name in charge_toroid_names:
+                if name in devices:
+                    continue
+                device = _instantiate_device(name, area)
+                if device is not None:
+                    devices[name] = device
 
         self.logger.info("Device dictionary built.")
         return devices
@@ -214,6 +226,8 @@ class BaseWireMeasurementCollection(
     def _get_data_from_buffer(self) -> dict:
         """Collects wire scan and detector data after buffer completes."""
 
+        charge_toroid_names = self.beam_profile_device.metadata.charge_toroids or []
+
         def _get_buffer_collection_method(device_name: str) -> str | None:
             """Determine the buffer collection method for a given device based on its name."""
 
@@ -223,6 +237,8 @@ class BaseWireMeasurementCollection(
                 return "fast_buffer"
             elif device_name.startswith("PMT"):
                 return "qdcraw_buffer"
+            elif device_name.startswith("IM"):
+                return "tmit_buffer"
             elif device_name.startswith("BPM"):
                 return "bpm_buffer"
             else:
@@ -238,10 +254,15 @@ class BaseWireMeasurementCollection(
                 return device.measure()
 
             if buffer_method == "bpm_buffer":
-                return {
+                result = {
                     "x": device.x_buffer(self.buffer, retries=3, retry_delay=3.0),
                     "y": device.y_buffer(self.buffer, retries=3, retry_delay=3.0),
                 }
+                if device_name in charge_toroid_names:
+                    result["tmit"] = device.tmit_buffer(
+                        self.buffer, retries=3, retry_delay=3.0
+                    )
+                return result
 
             return getattr(device, buffer_method)(
                 self.buffer, retries=3, retry_delay=3.0
