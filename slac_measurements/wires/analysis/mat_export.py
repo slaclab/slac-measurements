@@ -15,9 +15,10 @@ import numpy as np
 import scipy.io
 import yaml
 
+import pykern.sql_db
 import slac_db.config
+import slac_db.device
 
-_SLAC_DB_YAML: str = slac_db.config.yaml()
 _SLAC_DB_PACKAGE_DATA: pathlib.Path = slac_db.config.package_data()
 
 if TYPE_CHECKING:
@@ -46,50 +47,17 @@ def datetime_to_matlab_datenum(dt: datetime) -> float:
 
 
 def _build_name_map(mad_names: list[str]) -> dict[str, str]:
-    """Build MAD→EPICS name map from slac_db YAML device configs."""
-    mad_set = set(mad_names)
+    """Build MAD→EPICS name map from slac_db device database."""
     name_map: dict[str, str] = {}
-
-    yaml_path = pathlib.Path(_SLAC_DB_YAML)
-    if not yaml_path.is_dir():
-        warnings.warn(
-            f"slac_db YAML directory not found: {yaml_path}. "
-            "Pass name_map explicitly to to_mat().",
-            stacklevel=3,
-        )
-        return {}
-
-    for yaml_file in yaml_path.glob("*.yaml"):
-        if not mad_set - set(name_map.keys()):
-            break
+    for mad_name in mad_names:
         try:
-            with open(yaml_file) as f:
-                area_data = yaml.safe_load(f)
-        except Exception:
+            cs_name = slac_db.device.get_attribute(mad_name, "cs_name")
+            if cs_name:
+                name_map[mad_name] = cs_name
+        except pykern.sql_db.NoRows:
             continue
-        if not isinstance(area_data, dict):
-            continue
-        for device_type_data in area_data.values():
-            if not isinstance(device_type_data, dict):
-                continue
-            for mad_name, device_info in device_type_data.items():
-                if mad_name not in mad_set or mad_name in name_map:
-                    continue
-                if not isinstance(device_info, dict):
-                    continue
-                ctrl = device_info.get("controls_information", {})
-                if ctrl.get("control_name"):
-                    name_map[mad_name] = ctrl["control_name"]
-                    continue
-                pvs = ctrl.get("PVs", {})
-                if pvs:
-                    first_pv = next(iter(pvs.values()), "")
-                    if first_pv and ":" in first_pv:
-                        parts = first_pv.split(":")
-                        if len(parts) >= 3:
-                            name_map[mad_name] = ":".join(parts[:3])
 
-    missing = mad_set - set(name_map.keys())
+    missing = set(mad_names) - set(name_map.keys())
     if missing:
         warnings.warn(
             f"Could not find EPICS names for: {sorted(missing)}. "
