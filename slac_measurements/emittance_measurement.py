@@ -94,7 +94,7 @@ class EmittanceMeasurementResult(slac_measurements.BaseModel):
     rms_beamsizes: NDArrayAnnotatedType
     beam_matrix: NDArrayAnnotatedType
     energy: float
-    metadata: SerializeAsAny[Any]
+    metadata: Optional[SerializeAsAny[Any]] = None
 
 class MultiDeviceEmittanceResult(EmittanceMeasurementResult):
     """
