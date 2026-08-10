@@ -7,9 +7,9 @@ import warnings
 from typing import Literal
 
 import slac_measurements.beam_profile
-from slac_measurements.wires.coordinates import stage_to_beam, beam_to_stage
-from slac_measurements.wires.jitter_correction import compute_jitter
-from slac_measurements.wires.analysis_results import (
+from slac_measurements.wires.analysis.coordinates import stage_to_beam, beam_to_stage
+from slac_measurements.wires.analysis.jitter_correction import compute_jitter
+from slac_measurements.wires.analysis.results import (
     DetectorFit,
     DetectorProfileMeasurement,
     FitResult,
@@ -250,8 +250,18 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
             if detector_name not in profile_data.detectors:
                 continue
 
+            signal = profile_data.detectors[detector_name].values
+            if np.all(np.isnan(signal)):
+                warnings.warn(
+                    f"Detector '{detector_name}' returned all NaN for "
+                    f"profile '{profile}' — skipping.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                continue
+
             detector_fits[detector_name] = _fit_detector_in_profile(
-                x_beam, profile_data.detectors[detector_name].values, profile
+                x_beam, signal, profile
             )
 
         return FitResult(detectors=detector_fits)

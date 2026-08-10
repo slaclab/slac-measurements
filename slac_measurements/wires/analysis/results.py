@@ -6,9 +6,8 @@ from slac_measurements.beam_profile import (
     BeamProfileMeasurementResult,
 )
 from slac_measurements.utils import NDArrayAnnotatedType
-from slac_measurements.wires.collection_results import (
+from slac_measurements.wires.collection.results import (
     WireMeasurementCollectionResult,
-    # helper functions used when loading analysis results
     _load_metadata,
     _load_raw_data,
 )
@@ -51,6 +50,12 @@ class WireMeasurementAnalysisResult(BeamProfileMeasurementResult):
     fitting_method: str = "gaussian"
     jitter_corrected: bool = False
     jitter_rms: tuple[float, float] | None = None
+
+    def to_mat(self, filepath: str, **kwargs) -> str:
+        """Export this result as a MATLAB .mat file compatible with wirescan_gui."""
+        from slac_measurements.wires.analysis.mat_export import analysis_result_to_mat
+
+        return analysis_result_to_mat(self, filepath, **kwargs)
 
     def reanalyze(
         self,
@@ -119,7 +124,7 @@ class WireMeasurementAnalysisResult(BeamProfileMeasurementResult):
         The structure is designed to bundle both the raw collection
         information and the derived analysis data so that a single file
         contains everything necessary to reproduce or inspect a
-        wire‑scan analysis.  The layout mirrors the one used by
+        wire-scan analysis.  The layout mirrors the one used by
         :py:meth:`WireMeasurementCollectionResult.save_to_h5` for the
         collection portion and adds two additional groups under
         ``/analysis``:
@@ -136,8 +141,6 @@ class WireMeasurementAnalysisResult(BeamProfileMeasurementResult):
             at that location will be overwritten.
         """
 
-        # reuse imports locally to avoid adding h5py/np at top-level when
-        # the module is imported purely for type information
         import h5py
 
         with h5py.File(filepath, "w") as f:
@@ -149,23 +152,14 @@ class WireMeasurementAnalysisResult(BeamProfileMeasurementResult):
                     dtype=float,
                 )
 
-            # store the collection result under its own subgroup so that
-            # standalone collection loaders can still operate if needed
             col_grp = f.create_group("collection_result")
 
-            # metadata and raw_data helpers are defined on the
-            # WireMeasurementCollectionResult class; we can just call
-            # them directly since we know the instance type.
             meta_grp = col_grp.create_group("metadata")
             self.collection_result._save_metadata(meta_grp)
 
-            # include raw detector data from the collection
             raw_grp = col_grp.create_group("raw_data")
             self.collection_result._save_raw_data(raw_grp)
 
-            # (above block already handled the inherited profile fields)
-            # save the beam profile measurement fields inherited from
-            # BeamProfileMeasurementResult
             if self.rms_sizes is not None:
                 f.create_dataset(
                     "rms_sizes",
@@ -220,17 +214,14 @@ def load_from_h5(filepath: str) -> WireMeasurementAnalysisResult:
     Load a :class:`WireMeasurementAnalysisResult` previously written with
     :meth:`WireMeasurementAnalysisResult.save_to_h5`.
 
-    This helper mirrors the on‑disk structure defined above.  It is
+    This helper mirrors the on-disk structure defined above.  It is
     primarily intended for unit tests but may also be useful for
-    debugging and post‑processing scripts.
+    debugging and post-processing scripts.
     """
 
     import h5py
 
-    # first load the collection result using the existing loader by
-    # temporarily writing the subgroup to a temporary file-like object.
     with h5py.File(filepath, "r") as f:
-        # reuse existing functions
         col_group = f["collection_result"]
         metadata = _load_metadata(col_group["metadata"])
         raw_data = _load_raw_data(col_group["raw_data"])

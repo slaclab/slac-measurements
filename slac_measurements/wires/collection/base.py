@@ -10,8 +10,8 @@ from pydantic import model_validator
 from slac_devices.wire import Wire
 from slac_timing import Buffer
 import slac_measurements.beam_profile
-import slac_measurements.wires.buffer
-from slac_measurements.wires.collection_results import (
+import slac_measurements.wires.collection.buffer
+from slac_measurements.wires.collection.results import (
     MeasurementMetadata,
     WireMeasurementCollectionResult,
 )
@@ -256,7 +256,7 @@ class BaseWireMeasurementCollection(
         """Reserve a timing buffer for the scan based on beampath and wire metadata."""
 
         if self.buffer is None:
-            self.buffer = slac_measurements.wires.buffer.reserve_buffer(
+            self.buffer = slac_measurements.wires.collection.buffer.reserve_buffer(
                 beampath=self.beampath,
                 logger=self.logger,
                 pulses=self.beam_profile_device.scan_pulses,
@@ -321,7 +321,7 @@ def create_wire_collection(
     """Instantiate the mode-specific wire collection class."""
 
     if scan_mode == "step":
-        from slac_measurements.wires.step_collection import (
+        from slac_measurements.wires.collection.step import (
             StepWireMeasurementCollection,
         )
 
@@ -331,7 +331,7 @@ def create_wire_collection(
         )
 
     if scan_mode == "otf":
-        from slac_measurements.wires.otf_collection import OTFWireMeasurementCollection
+        from slac_measurements.wires.collection.otf import OTFWireMeasurementCollection
 
         return OTFWireMeasurementCollection(
             beam_profile_device=beam_profile_device,

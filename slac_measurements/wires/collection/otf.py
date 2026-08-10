@@ -1,42 +1,13 @@
+"""OTF wire collection: buffered data acquisition with continuous motion."""
+
 import time
 
-import slac_measurements.utils
-
-from slac_measurements.wires.collection import BaseWireMeasurementCollection
+from slac_measurements.wires.collection.base import BaseWireMeasurementCollection
+from slac_measurements.wires.motion.otf import initialize_otf_with_retry
 
 
 class OTFWireMeasurementCollection(BaseWireMeasurementCollection):
     """Collect wire scan data using on-the-fly wire motion."""
-
-    def _initialize_otf_with_retry(self, max_attempts: int = 3) -> None:
-        """Start OTF scan and retry until wire is homed and on status."""
-
-        # start_scan must always be called to arm the wire for OTF motion,
-        # even if homed/on_status are already True from a prior run.
-        for attempt in range(1, max_attempts + 1):
-            self.logger.info(
-                "Starting OTF scan on %s (Attempt %s/%s)...",
-                self.beam_profile_device.name,
-                attempt,
-                max_attempts,
-            )
-            self.beam_profile_device.start_scan()
-
-            if slac_measurements.utils.wait_until(
-                lambda: self.beam_profile_device.homed
-                and self.beam_profile_device.on_status
-            ):
-                self.logger.info("%s is homed and on.", self.beam_profile_device.name)
-                return
-
-            self.logger.warning(
-                "%s did not become homed and on - retrying...",
-                self.beam_profile_device.name,
-            )
-
-        raise RuntimeError(
-            f"Failed to initialize {self.beam_profile_device.name} after {max_attempts} attempts."
-        )
 
     def _run_collection_scan(self) -> None:
         """Run an OTF scan: init wire, start buffer."""
@@ -72,5 +43,5 @@ class OTFWireMeasurementCollection(BaseWireMeasurementCollection):
             )
 
         self.logger.info("Performing on-the-fly scan mode")
-        self._initialize_otf_with_retry()
+        initialize_otf_with_retry(self.beam_profile_device, self.logger, max_attempts=3)
         _start_timing_buffer()

@@ -1,11 +1,14 @@
 from slac_devices.wire import Wire
 import slac_measurements.beam_profile
-from slac_measurements.wires.collection import ScanMode, create_wire_collection
-from slac_measurements.wires.analysis import FittingMethod, WireMeasurementAnalysis
-from slac_measurements.wires.analysis_results import (
+from slac_measurements.wires.collection.base import ScanMode, create_wire_collection
+from slac_measurements.wires.analysis.analysis import (
+    FittingMethod,
+    WireMeasurementAnalysis,
+)
+from slac_measurements.wires.analysis.results import (
     WireMeasurementAnalysisResult,
 )
-from slac_measurements.wires.collection_results import (
+from slac_measurements.wires.collection.results import (
     WireMeasurementCollectionResult,
 )
 from typing import Optional

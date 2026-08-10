@@ -1,6 +1,6 @@
 import numpy as np
 
-from slac_measurements.wires.collection_results import WireMeasurementCollectionResult
+from slac_measurements.wires.collection.results import WireMeasurementCollectionResult
 
 
 _DISPERSION_THRESHOLD = 1e-4

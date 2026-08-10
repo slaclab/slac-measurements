@@ -5,7 +5,7 @@ from slac_measurements.wires.scan import WireBeamProfileMeasurement
 from slac_measurements.wires.analysis import FittingMethod, WireMeasurementAnalysis
 
 # Result types — for type hints, isinstance checks, and loading saved files
-from slac_measurements.wires.analysis_results import (
+from slac_measurements.wires.analysis.results import (
     DetectorFit,
     DetectorProfileMeasurement,
     FitResult,
@@ -13,7 +13,7 @@ from slac_measurements.wires.analysis_results import (
     WireMeasurementAnalysisResult,
     load_from_h5 as load_analysis_from_h5,
 )
-from slac_measurements.wires.collection_results import (
+from slac_measurements.wires.collection.results import (
     MeasurementMetadata,
     WireMeasurementCollectionResult,
     load_from_h5 as load_collection_from_h5,
@@ -23,4 +23,4 @@ from slac_measurements.wires.collection_results import (
 from slac_measurements.wires.collection import ScanMode, create_wire_collection
 
 # Jitter correction — compute beam jitter from BPM data
-from slac_measurements.wires.jitter_correction import compute_jitter
+from slac_measurements.wires.analysis.jitter_correction import compute_jitter

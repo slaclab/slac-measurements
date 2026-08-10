@@ -6,7 +6,7 @@ import numpy as np
 
 from slac_devices.wire import Wire
 from slac_measurements.wires.scan import WireBeamProfileMeasurement
-from slac_measurements.wires.collection_results import (
+from slac_measurements.wires.collection.results import (
     MeasurementMetadata,
     WireMeasurementCollectionResult,
     load_from_h5,

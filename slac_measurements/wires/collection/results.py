@@ -12,9 +12,9 @@ class MeasurementMetadata(BaseModel):
     wire_name: str
     buffer_number: int | None = None
     area: str
-    beampath: str
-    detectors: list[str]
-    default_detector: str
+    beampath: str | None = None
+    detectors: list[str] | None = None
+    default_detector: str | None = None
     rms_detector: str | None = None
     scan_ranges: dict[str, tuple[int, int]]
     timestamp: datetime | None = None
@@ -115,12 +115,14 @@ class WireMeasurementCollectionResult(BeamProfileCollectionResult):
         for device_name, data in self.raw_data.items():
             if isinstance(data, np.ndarray):
                 group.create_dataset(device_name, data=data)
+            elif isinstance(data, dict):
+                sub_group = group.create_group(device_name)
+                for key, value in data.items():
+                    sub_group.create_dataset(key, data=np.asarray(value))
             else:
-                # Try to convert to numpy array
                 try:
                     group.create_dataset(device_name, data=np.array(data))
                 except (TypeError, ValueError):
-                    # Store as string representation if conversion fails
                     group.attrs[f"{device_name}_unsupported"] = str(data)
 
 
@@ -207,6 +209,10 @@ def _load_raw_data(group: h5py.Group) -> dict[str, Any]:
     raw_data = {}
 
     for device_name in group.keys():
-        raw_data[device_name] = group[device_name][:]
+        item = group[device_name]
+        if isinstance(item, h5py.Group):
+            raw_data[device_name] = {k: item[k][:] for k in item.keys()}
+        else:
+            raw_data[device_name] = item[:]
 
     return raw_data
