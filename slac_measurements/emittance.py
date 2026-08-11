@@ -54,8 +54,8 @@ def compute_emit_bmag(
         Dictionary containing the following keys:
         - 'emittance': numpy.ndarray of shape (batchshape x 1) containing the geometric emittance
           fit results for each plane in mm-mrad.
-        - 'bmag': numpy.ndarray of shape (batchshape x n_steps) containing the bmag corresponding
-          to each point in each plane.
+        - 'bmag': numpy.ndarray of shape (batchshape x 1) containing the bmag at the
+          reconstruction point.
         - 'phase_advances': numpy.ndarray of shape (batchshape x n_steps) containing the phase advances
           at each point in each plane.
         - 'beam_matrix': numpy.ndarray of shape (batchshape x 3) containing [sig11, sig12, sig22]
