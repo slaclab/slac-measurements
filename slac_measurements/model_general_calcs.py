@@ -62,7 +62,6 @@ def bdes_to_kmod(e_tot=None, effective_length=None, bdes=None, tao=None, element
         effective_length = ele["L"]
     return bdes / effective_length / bp  # kG / m / kG m = 1/m^2
 
-#TODO: get design twiss at reconstruction point only
 def quad_scan_optics(
     magnet: Magnet, beam_profile_device: Union[Screen, Wire], physics_model="BMAD"
 ) -> Dict:
