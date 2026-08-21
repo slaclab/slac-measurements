@@ -170,3 +170,34 @@ class WireBeamProfileMeasurementTest(TestCase):
             loaded = load_from_h5(outpath)
 
         self.assertEqual(loaded.metadata.buffer_number, 7)
+
+    def test_collection_result_round_trip_with_none_optional_fields(self):
+        metadata = MeasurementMetadata(
+            wire_name="WIRE:TEST:100",
+            area="L3",
+            beampath=None,
+            detectors=None,
+            default_detector=None,
+            scan_ranges={"x": (100, 500), "y": (800, 1200)},
+            active_profiles=["x", "y"],
+            install_angle=45.0,
+        )
+        collection_result = WireMeasurementCollectionResult(
+            raw_data={"WIRE:TEST:100": np.array([100.0, 200.0, 500.0])},
+            metadata=metadata,
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            outpath = f"{tmpdir}/collection_result.h5"
+            collection_result.save_to_h5(outpath)
+            loaded = load_from_h5(outpath)
+
+        self.assertIsNone(loaded.metadata.beampath)
+        self.assertIsNone(loaded.metadata.detectors)
+        self.assertIsNone(loaded.metadata.default_detector)
+        self.assertEqual(loaded.metadata.wire_name, "WIRE:TEST:100")
+        self.assertEqual(loaded.metadata.area, "L3")
+        self.assertEqual(
+            loaded.metadata.scan_ranges, {"x": (100, 500), "y": (800, 1200)}
+        )
+        self.assertEqual(loaded.metadata.active_profiles, ["x", "y"])

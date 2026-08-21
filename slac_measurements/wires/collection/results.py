@@ -86,8 +86,10 @@ class WireMeasurementCollectionResult(BeamProfileCollectionResult):
         if meta.buffer_number is not None:
             group.attrs["buffer_number"] = meta.buffer_number
         group.attrs["area"] = meta.area
-        group.attrs["beampath"] = meta.beampath
-        group.attrs["default_detector"] = meta.default_detector
+        if meta.beampath is not None:
+            group.attrs["beampath"] = meta.beampath
+        if meta.default_detector is not None:
+            group.attrs["default_detector"] = meta.default_detector
         if meta.rms_detector is not None:
             group.attrs["rms_detector"] = meta.rms_detector
         if meta.timestamp is not None:
@@ -99,10 +101,11 @@ class WireMeasurementCollectionResult(BeamProfileCollectionResult):
             group.attrs["notes"] = meta.notes
 
         # Store list of detectors
-        group.create_dataset(
-            "detectors",
-            data=np.array(meta.detectors, dtype="S"),
-        )
+        if meta.detectors is not None:
+            group.create_dataset(
+                "detectors",
+                data=np.array(meta.detectors, dtype="S"),
+            )
 
         # Store scan ranges as a structured dataset
         scan_ranges_group = group.create_group("scan_ranges")
@@ -166,8 +169,8 @@ def _load_metadata(group: h5py.Group) -> MeasurementMetadata:
     wire_name = group.attrs["wire_name"]
     buffer_number = group.attrs.get("buffer_number", None)
     area = group.attrs["area"]
-    beampath = group.attrs["beampath"]
-    default_detector = group.attrs["default_detector"]
+    beampath = group.attrs.get("beampath", None)
+    default_detector = group.attrs.get("default_detector", None)
     rms_detector = group.attrs.get("rms_detector", None)
     timestamp_str = group.attrs.get("timestamp", None)
     timestamp = (
@@ -178,7 +181,11 @@ def _load_metadata(group: h5py.Group) -> MeasurementMetadata:
     notes = group.attrs.get("notes", None)
 
     # Load detectors list
-    detectors = [d.decode() if isinstance(d, bytes) else d for d in group["detectors"]]
+    detectors = None
+    if "detectors" in group:
+        detectors = [
+            d.decode() if isinstance(d, bytes) else d for d in group["detectors"]
+        ]
 
     # Load scan ranges
     scan_ranges = {}
