@@ -51,6 +51,12 @@ class WireMeasurementAnalysisResult(BeamProfileMeasurementResult):
     jitter_corrected: bool = False
     jitter_rms: tuple[float, float] | None = None
 
+    def to_mat(self, filepath: str, **kwargs) -> str:
+        """Export this result as a MATLAB .mat file compatible with wirescan_gui."""
+        from slac_measurements.wires.analysis.mat_export import analysis_result_to_mat
+
+        return analysis_result_to_mat(self, filepath, **kwargs)
+
     def reanalyze(
         self,
         jitter_correction: bool = False,
