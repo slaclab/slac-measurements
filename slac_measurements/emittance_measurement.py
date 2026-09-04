@@ -35,30 +35,6 @@ from slac_measurements.beam_profile import (
 )
 
 
-class BMAGMode(enum.IntEnum):
-    X = 0
-    Y = 1
-    # Value is not a valid index unlike X & Y
-    GEOMETRIC_MEAN = -10
-    JOINT_MAX = -11
-
-    @classmethod
-    def from_any(cls, value):
-        def _members():
-            return ", ".join((m.name for m in cls))
-
-        try:
-            if isinstance(value, cls):
-                return value
-            if isinstance(value, str):
-                return cls[value.upper()]
-            if isinstance(value, int):
-                return cls(value)
-        except (ValueError, KeyError):
-            pass
-        raise ValueError(f"invalid {cls.__name__}={value} must be one of: {_members()}")
-
-
 class EmittanceMeasurementResult(slac_measurements.BaseModel):
     """
     EmittanceMeasurementResult stores the results of an emittance measurement.
@@ -86,6 +62,7 @@ class EmittanceMeasurementResult(slac_measurements.BaseModel):
     emittance: NDArrayAnnotatedType
     geometric_emittance: NDArrayAnnotatedType
     bmag: Optional[NDArrayAnnotatedType] = None
+    phase_advances: Optional[NDArrayAnnotatedType] = None
     twiss: NDArrayAnnotatedType
     twiss_at_reconstruction: NDArrayAnnotatedType
     rmats: Optional[NDArrayAnnotatedType] = None
@@ -93,7 +70,7 @@ class EmittanceMeasurementResult(slac_measurements.BaseModel):
     rms_beamsizes: NDArrayAnnotatedType
     beam_matrix: NDArrayAnnotatedType
     energy: float
-    metadata: SerializeAsAny[Any]
+    metadata: Optional[SerializeAsAny[Any]] = None
 
 class MultiDeviceEmittanceResult(EmittanceMeasurementResult):
     """
@@ -160,65 +137,11 @@ class QuadScanEmittanceResult(EmittanceMeasurementResult):
     """
 
     bmag: Optional[List[NDArrayAnnotatedType]] = None
+    phase_advances: Optional[List[NDArrayAnnotatedType]] = None
     twiss: List[NDArrayAnnotatedType]
     rms_beamsizes: List[NDArrayAnnotatedType]
     quadrupole_focusing_strengths: List[NDArrayAnnotatedType]
     quadrupole_pv_values: List[NDArrayAnnotatedType]
-
-    def get_best_bmag(self, mode=BMAGMode.GEOMETRIC_MEAN) -> tuple:
-        """
-        Get the best BMAG value for a given mode (x, y, geometric mean) and the corresponding PV value.
-
-        Parameters
-        ----------
-        mode : str, optional
-            The mode to get the best BMAG value for, default is "geometric_mean".
-            Mode can be one of the following: "x", "y", "geometric_mean", "joint_max".
-            - "x": get the best BMAG value for the x plane.
-            - "y": get the best BMAG value for the y plane.
-            - "geometric_mean": get the best BMAG value for the geometric mean of the x and y planes.
-            - "joint_max": get the best BMAG value for the joint max of the x and y planes.
-
-        Returns
-        -------
-        tuple
-            The best BMAG value and corresponding pv value for the quadrupole.
-
-        """
-        if self.bmag is None:
-            raise ValueError("BMAG values are not available for this measurement")
-
-        mode = BMAGMode.from_any(mode)
-
-        bmag = self.bmag
-
-        if mode == BMAGMode.GEOMETRIC_MEAN or mode == BMAGMode.JOINT_MAX:
-            # interpolate between samples
-            fits = []
-
-            min_k = min([min(k) for k in self.quadrupole_pv_values])
-            max_k = max([max(k) for k in self.quadrupole_pv_values])
-            k = np.linspace(min_k, max_k, 100)
-            for i in range(2):
-                bmag_fit = np.polyfit(self.quadrupole_pv_values[i], bmag[i], 2)
-                fits.append(np.polyval(bmag_fit, k))
-            if mode == BMAGMode.GEOMETRIC_MEAN:
-                # multiply x and y bmag values to get geometric mean
-                bmag = np.sqrt(fits[0] * fits[1])
-            elif mode == BMAGMode.JOINT_MAX:
-                # get the joint max of the x and y bmag values
-                bmag = np.max(fits, axis=0)
-        else:
-            # get x or y bmag values individually
-            bmag = bmag[mode.value]
-            k = self.quadrupole_pv_values[mode.value]
-
-        # get best index and return bmag value and corresponding pv value
-        best_index = np.argmin(bmag)
-        bmag_value = bmag[best_index]
-        best_pv_value = k[best_index]
-
-        return bmag_value, best_pv_value
 
 
 class EmittanceMeasurementBase(Measurement):
@@ -525,6 +448,7 @@ class QuadScanEmittance(Measurement):
                 "twiss_at_reconstruction": [],
                 "beam_matrix": [],
                 "bmag": [] if twiss_betas_alphas is not None else None,
+                "phase_advances": [] if twiss_betas_alphas is not None else None,
                 "quadrupole_focusing_strengths": [],
                 "quadrupole_pv_values": [],
                 "rms_beamsizes": [],
@@ -888,6 +812,7 @@ def compute_emit_bmag_quad_scan_machine_units(
         "twiss": [],
         "beam_matrix": [],
         "bmag": [] if twiss_design is not None else None,
+        "phase_advances": [] if twiss_design is not None else None,
         "quadrupole_focusing_strengths": [],
         "quadrupole_pv_values": [],
         "rms_beamsizes": [],
@@ -912,7 +837,7 @@ def compute_emit_bmag_quad_scan_machine_units(
 
         # add results to dict object
         for name, value in result.items():
-            if name == "bmag" and value is None:
+            if name in {"bmag", "phase_advances"} and value is None:
                 continue
             else:  # beam matrix and emittance get appended
                 results[name].append(value)
