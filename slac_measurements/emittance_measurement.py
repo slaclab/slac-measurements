@@ -20,9 +20,11 @@ from slac_measurements.screen_profile import ScreenBeamProfileMeasurement
 from slac_measurements.utils import (
     NDArrayAnnotatedType,
 )
-from slac_measurements.model_general_calcs import (
+from slac_model.model_general_calcs import (
     build_quad_rmat,
     bdes_to_kmod,
+)
+from slac_measurements.model_general_calcs import (
     multi_device_optics,
     get_optics_after_magnet,
     quad_scan_optics,
