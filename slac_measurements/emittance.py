@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.optimize import minimize
 import importlib.util
-from slac_measurements.model_general_calcs import (
+from slac_model.model_general_calcs import (
     bmag_func,
     propagate_twiss,
 )
