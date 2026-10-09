@@ -9,3 +9,6 @@ __pycache__/
 *$py.class
 *.egg-info/
 *.egg
+
+# Scratch.gitignore 
+scratch/
