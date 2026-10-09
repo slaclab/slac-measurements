@@ -20,6 +20,7 @@ class MeasurementMetadata(BaseModel):
     timestamp: datetime | None = None
     active_profiles: list[str]
     install_angle: float
+    charge_toroids: list[str] | None = None
     notes: str | None = None
 
 

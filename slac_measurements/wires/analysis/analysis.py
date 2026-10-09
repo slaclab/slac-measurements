@@ -7,6 +7,9 @@ import warnings
 from typing import Literal
 
 import slac_measurements.beam_profile
+from slac_measurements.wires.analysis.charge_normalization import (
+    compute_charge_normalization,
+)
 from slac_measurements.wires.analysis.coordinates import stage_to_beam, beam_to_stage
 from slac_measurements.wires.analysis.jitter_correction import compute_jitter
 from slac_measurements.wires.analysis.results import (
@@ -36,11 +39,15 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
     fitting_method: FittingMethod = "gaussian"
     _jitter_x: np.ndarray | None = PrivateAttr(default=None)
     _jitter_y: np.ndarray | None = PrivateAttr(default=None)
+    _charge_factors: np.ndarray | None = PrivateAttr(default=None)
+    _charge_valid_mask: np.ndarray | None = PrivateAttr(default=None)
 
     def analyze(
         self,
         rms_detector: str | None = None,
         jitter_correction: bool = False,
+        charge_normalization: bool = False,
+        charge_toroid: str | None = None,
         physics_model: str = "BLEM",
     ) -> WireMeasurementAnalysisResult:
         """
@@ -54,6 +61,12 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
         jitter_correction : bool
             If True, compute orbit-fit jitter correction from BPM data
             and subtract per-profile in beam coordinates before fitting.
+        charge_normalization : bool
+            If True, normalize detector signals by per-pulse charge and
+            mask out low-charge pulses.
+        charge_toroid : str, optional
+            Toroid device name for charge normalization. If not specified,
+            defaults to the first available charge toroid from metadata.
         physics_model : str
             Model source for R-matrix retrieval. Default "BLEM".
 
@@ -75,6 +88,16 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
                 f"metadata.detectors={metadata.detectors}."
             )
         metadata.rms_detector = effective_detector
+
+        if charge_normalization:
+            self._charge_factors, self._charge_valid_mask, charge_toroid = (
+                compute_charge_normalization(
+                    self.collection_result, toroid=charge_toroid
+                )
+            )
+        else:
+            self._charge_factors = None
+            self._charge_valid_mask = None
 
         if jitter_correction:
             self._jitter_x, self._jitter_y = compute_jitter(
@@ -105,6 +128,8 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
             fitting_method=self.fitting_method,
             jitter_corrected=jitter_correction,
             jitter_rms=jitter_rms,
+            charge_normalized=charge_normalization,
+            charge_toroid=charge_toroid,
         )
 
     def _create_detector_measurement(
@@ -450,6 +475,18 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
             self.collection_result.metadata.wire_name,
         ]
         for profile, index in profile_indices.items():
+            if self._charge_valid_mask is not None:
+                valid = self._charge_valid_mask[index]
+                index = index[valid]
+                if len(index) == 0:
+                    warnings.warn(
+                        f"All pulses in profile '{profile}' had insufficient "
+                        f"charge — skipping profile.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    continue
+
             detectors = {}
             positions = None
             for d_n in devices:
@@ -460,6 +497,9 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
                 if d_n == self.collection_result.metadata.wire_name:
                     positions = data_slice
                 else:
+                    # Apply charge normalization factors to detector signals
+                    if self._charge_factors is not None:
+                        data_slice = data_slice * self._charge_factors[index]
                     detectors[d_n] = self._create_detector_measurement(d_n, data_slice)
 
             profile_measurements[profile] = _create_profile_measurement(

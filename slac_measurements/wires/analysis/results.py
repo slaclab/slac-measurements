@@ -50,6 +50,8 @@ class WireMeasurementAnalysisResult(BeamProfileMeasurementResult):
     fitting_method: str = "gaussian"
     jitter_corrected: bool = False
     jitter_rms: tuple[float, float] | None = None
+    charge_normalized: bool = False
+    charge_toroid: str | None = None
 
     def to_mat(self, filepath: str, **kwargs) -> str:
         """Export this result as a MATLAB .mat file compatible with wirescan_gui."""
@@ -60,6 +62,8 @@ class WireMeasurementAnalysisResult(BeamProfileMeasurementResult):
     def reanalyze(
         self,
         jitter_correction: bool = False,
+        charge_normalization: bool = False,
+        charge_toroid: str | None = None,
         fitting_method: str = "gaussian",
         rms_detector: str | None = None,
         physics_model: str = "BLEM",
@@ -70,6 +74,10 @@ class WireMeasurementAnalysisResult(BeamProfileMeasurementResult):
         ----------
         jitter_correction : bool
             If True, apply orbit-fit jitter correction.
+        charge_normalization : bool
+            If True, normalize detector signals by per-pulse charge.
+        charge_toroid : str, optional
+            Toroid device name for charge normalization.
         fitting_method : str
             Fitting method to use. Default "gaussian".
         rms_detector : str, optional
@@ -91,6 +99,8 @@ class WireMeasurementAnalysisResult(BeamProfileMeasurementResult):
         return analysis.analyze(
             rms_detector=rms_detector,
             jitter_correction=jitter_correction,
+            charge_normalization=charge_normalization,
+            charge_toroid=charge_toroid,
             physics_model=physics_model,
         )
 
@@ -111,6 +121,8 @@ class WireMeasurementAnalysisResult(BeamProfileMeasurementResult):
             f"fitting_method='{self.fitting_method}', "
             f"jitter_corrected={self.jitter_corrected}, "
             f"jitter_rms={self.jitter_rms}, "
+            f"charge_normalized={self.charge_normalized}, "
+            f"charge_toroid={self.charge_toroid!r}, "
             f"profiles={profile_count}, "
             f"fit_profiles={fit_profile_count}, "
             f"detectors={detector_count}, "

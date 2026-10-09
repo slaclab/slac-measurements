@@ -159,6 +159,8 @@ class WireBeamProfileMeasurementTest(TestCase):
         mock_analysis_cls.return_value.analyze.assert_called_once_with(
             rms_detector="D2",
             jitter_correction=False,
+            charge_normalization=False,
+            charge_toroid=None,
         )
 
     def test_collection_result_round_trip_preserves_buffer_number(self):

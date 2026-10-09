@@ -213,6 +213,7 @@ class BaseWireMeasurementCollection(
             timestamp=None,
             active_profiles=self.beam_profile_device.active_profiles(),
             install_angle=self.beam_profile_device.install_angle,
+            charge_toroids=self.beam_profile_device.metadata.charge_toroids,
             notes=None,
         )
 

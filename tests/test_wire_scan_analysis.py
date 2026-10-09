@@ -339,6 +339,33 @@ class TestWireMeasurementAnalysisOtherMethods(TestCase):
             x_profile.detectors["TMITLOSS"].values, np.array([1.0, 3.0])
         )
 
+    def test_organize_data_by_profile_warns_and_skips_empty_profile_after_charge_masking(
+        self,
+    ):
+        raw_data = {
+            "WIRE": np.array([10.0, 11.0, 12.0]),
+            "D1": np.array([100.0, 101.0, 102.0]),
+        }
+        analysis = self._make_analysis(
+            raw_data=raw_data,
+            detectors=["D1"],
+            active_profiles=["x"],
+            scan_ranges={"x": (9, 13)},
+        )
+        analysis._charge_valid_mask = np.array([False, False, False])
+        analysis._charge_factors = np.array([1.0, 1.0, 1.0])
+
+        profile_indices = {"x": np.array([0, 1, 2])}
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = analysis._organize_data_by_profile(profile_indices)
+
+        self.assertEqual(result, {})
+        self.assertEqual(len(w), 1)
+        self.assertIn("insufficient charge", str(w[0].message).lower())
+        self.assertIn("x", str(w[0].message))
+
     def test_get_rms_sizes_returns_expected_detector_sigmas(self):
         analysis = self._make_analysis(default_detector="D1")
         fit_result = _make_fit_result(

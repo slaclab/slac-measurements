@@ -10,4 +10,7 @@ from slac_measurements.wires.analysis.results import (
     WireMeasurementAnalysisResult,
     load_from_h5,
 )
+from slac_measurements.wires.analysis.charge_normalization import (
+    compute_charge_normalization,
+)
 from slac_measurements.wires.analysis.jitter_correction import compute_jitter

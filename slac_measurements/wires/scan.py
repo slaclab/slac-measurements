@@ -28,6 +28,8 @@ class WireBeamProfileMeasurement(slac_measurements.beam_profile.BeamProfileMeasu
         fitting_method: FittingMethod = "gaussian",
         rms_detector: Optional[str] = None,
         jitter_correction: bool = False,
+        charge_normalization: bool = False,
+        charge_toroid: Optional[str] = None,
     ) -> WireMeasurementAnalysisResult:
         """
         Run a wire scan and return the analyzed result.
@@ -39,6 +41,9 @@ class WireBeamProfileMeasurement(slac_measurements.beam_profile.BeamProfileMeasu
         rms_detector : Detector for RMS sizes; defaults to the collection metadata default.
         jitter_correction : If True, apply orbit-fit jitter correction during analysis.
             Requires jitter_correction_bpms defined in wire metadata.
+        charge_normalization : If True, normalize detector signals by per-pulse charge.
+        charge_toroid : Toroid device name for charge normalization. If None,
+            defaults to the first available charge toroid from wire metadata.
         """
 
         collection = create_wire_collection(
@@ -55,4 +60,6 @@ class WireBeamProfileMeasurement(slac_measurements.beam_profile.BeamProfileMeasu
         return analysis.analyze(
             rms_detector=rms_detector,
             jitter_correction=jitter_correction,
+            charge_normalization=charge_normalization,
+            charge_toroid=charge_toroid,
         )
