@@ -375,10 +375,14 @@ class TestWireMeasurementAnalysisOtherMethods(TestCase):
             }
         )
 
-        x_rms, y_rms = analysis._get_rms_sizes(fit_result, detector="D1")
+        (x_rms, y_rms), (x_err, y_err) = analysis._get_rms_sizes(
+            fit_result, detector="D1"
+        )
 
         self.assertEqual(x_rms, 1.25)
         self.assertEqual(y_rms, 2.5)
+        self.assertEqual(x_err, 0.0)
+        self.assertEqual(y_err, 0.0)
 
     def test_get_rms_sizes_uses_requested_detector_override(self):
         analysis = self._make_analysis(
@@ -392,7 +396,7 @@ class TestWireMeasurementAnalysisOtherMethods(TestCase):
             }
         )
 
-        x_rms, y_rms = analysis._get_rms_sizes(fit_result, detector="D2")
+        (x_rms, y_rms), _ = analysis._get_rms_sizes(fit_result, detector="D2")
 
         self.assertEqual(x_rms, 3.5)
         self.assertEqual(y_rms, 4.5)
@@ -401,10 +405,13 @@ class TestWireMeasurementAnalysisOtherMethods(TestCase):
         analysis = self._make_analysis(default_detector="D1")
         fit_result = _make_fit_result({"x": {"D1": 1.1}})
 
-        x_rms, y_rms = analysis._get_rms_sizes(fit_result, detector="D1")
+        (x_rms, y_rms), (x_err, y_err) = analysis._get_rms_sizes(
+            fit_result, detector="D1"
+        )
 
         self.assertEqual(x_rms, 1.1)
         self.assertIsNone(y_rms)
+        self.assertIsNone(y_err)
 
     def test_analyze_raises_for_unknown_rms_detector(self):
         analysis = self._make_analysis(detectors=["D1", "D2"])
@@ -479,7 +486,9 @@ class TestWireMeasurementAnalysisOtherMethods(TestCase):
                 return_value=expected_fit_result,
             ) as mock_fit,
             patch.object(
-                analysis, "_get_rms_sizes", return_value=(1.0, 2.0)
+                analysis,
+                "_get_rms_sizes",
+                return_value=((1.0, 2.0), (0.1, 0.2)),
             ) as mock_rms,
         ):
             result = analysis.analyze(rms_detector="D1")

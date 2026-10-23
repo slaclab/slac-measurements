@@ -32,6 +32,7 @@ class BeamProfileMeasurementResult(slac_measurements.BaseModel):
     """
 
     rms_sizes: Optional[NDArrayAnnotatedType] = None
+    rms_sizes_err: Optional[NDArrayAnnotatedType] = None
     centroids: Optional[NDArrayAnnotatedType] = None
     total_intensities: Optional[NDArrayAnnotatedType] = None
     signal_to_noise_ratios: Optional[NDArrayAnnotatedType] = None

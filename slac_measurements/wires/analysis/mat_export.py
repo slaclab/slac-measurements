@@ -372,16 +372,73 @@ def _build_beam_struct(
 
     stats[5] = stat_map["x"][0]
 
+    # --- Error propagation (matches MATLAB beamAnalysis_beamParams) ---
+    x_stat_std = np.zeros(5, dtype=np.float64)
+    y_stat_std = np.zeros(5, dtype=np.float64)
+    u_stat_std = np.zeros(5, dtype=np.float64)
+    stat_std_map = {"x": x_stat_std, "y": y_stat_std, "u": u_stat_std}
+
+    for tag in ("x", "y", "u"):
+        if tag in fit_result and default_det:
+            det_fit = fit_result[tag].detectors.get(default_det)
+            if det_fit is not None:
+                sig = det_fit.sigma
+                amp = det_fit.amplitude
+                sig_e = det_fit.sigma_err
+                amp_e = det_fit.amplitude_err
+                # area = sqrt(2π) * sigma * amp
+                area_err = np.sqrt(
+                    (np.sqrt(2 * np.pi) * sig * amp_e) ** 2
+                    + (np.sqrt(2 * np.pi) * amp * sig_e) ** 2
+                )
+                stat_std_map[tag][0] = area_err
+                stat_std_map[tag][1] = abs(
+                    float(
+                        stage_to_beam(
+                            np.array([det_fit.mean_err]), tag, metadata.install_angle
+                        )[0]
+                    )
+                )
+                stat_std_map[tag][2] = sig_e
+
+    # statsStd = [x_mean_err, y_mean_err, x_sigma_err, y_sigma_err, xy_err, int_err]
+    stats_std = np.zeros(6, dtype=np.float64)
+    stats_std[0] = x_stat_std[1]  # x mean err
+    stats_std[1] = y_stat_std[1]  # y mean err
+    stats_std[2] = x_stat_std[2]  # x sigma err
+    stats_std[3] = y_stat_std[2]  # y sigma err
+
+    # xy correlation error: dxy = [sigma_x, sigma_y/c, -2*sigma_u*2c/(1+c^2)]
+    # with c = 1 for wire scans (non-image)
+    sx_e = x_stat_std[2]
+    sy_e = y_stat_std[2]
+    su_e = u_stat_std[2]
+    sx = stats[2]
+    sy = stats[3]
+    su = stat_map["u"][2] if stat_map["u"][2] > 0 else 0.0
+    dxy = np.array([sx * sx_e, sy * sy_e, -2.0 * su * 2.0 * su_e])
+    stats_std[4] = np.sqrt(np.sum(dxy**2))
+
+    # intensity error: int = sqrt(area_x * area_y)
+    area_x = stat_map["x"][0]
+    area_y = stat_map["y"][0]
+    area_xe = x_stat_std[0]
+    area_ye = y_stat_std[0]
+    total_int = np.sqrt(max(area_x * area_y, 0.0))
+    if total_int > 0:
+        dint = np.array([np.sqrt(area_y), np.sqrt(area_x)]) / (2.0 * total_int)
+        stats_std[5] = np.sqrt((dint[0] * area_xe) ** 2 + (dint[1] * area_ye) ** 2)
+
     beam_entry: dict[str, Any] = {
         "method": result.fitting_method.capitalize(),
         "stats": stats.reshape(1, 6),
-        "statsStd": np.zeros((1, 6), dtype=np.float64),
+        "statsStd": stats_std.reshape(1, 6),
         "xStat": x_stat.reshape(1, 5),
-        "xStatStd": np.zeros((1, 5), dtype=np.float64),
+        "xStatStd": x_stat_std.reshape(1, 5),
         "yStat": y_stat.reshape(1, 5),
-        "yStatStd": np.zeros((1, 5), dtype=np.float64),
+        "yStatStd": y_stat_std.reshape(1, 5),
         "uStat": u_stat.reshape(1, 5),
-        "uStatStd": np.zeros((1, 5), dtype=np.float64),
+        "uStatStd": u_stat_std.reshape(1, 5),
     }
 
     for tag in ("x", "y", "u"):
