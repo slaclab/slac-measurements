@@ -157,7 +157,7 @@ def calc_image_centroids(
     Returns
     -------
     np.ndarray
-        Array of centroids with shape (..., 2), where the last dimension is (x, y) coordinates.
+        Array of centroids with shape (..., 2), where the last dimension is (y, x) coordinates.
     """
 
     batch_shape = images.shape[:-2]
@@ -185,7 +185,7 @@ def center_images(
     images : np.ndarray
         Batch of images with shape (..., height (y size), width (x size)).
     image_centroids : np.ndarray
-        Array of centroid coordinates for each image, shape (..., 2).
+        Array of centroid coordinates for each image, shape (..., 2), (y, x) order.
 
     Returns
     -------
@@ -194,7 +194,6 @@ def center_images(
     """
 
     center_location = np.array(images.shape[-2:]) // 2
-    center_location = center_location[::-1]
 
     # Flatten batch dimensions
     flattened_images = images.reshape((-1,) + images.shape[-2:])

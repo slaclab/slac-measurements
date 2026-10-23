@@ -212,6 +212,6 @@ class ImageProjectionFit(ImageFit):
                 warnings.warn(
                     f"Projection in {dim} had a low amplitude relative to noise"
                 )
-                return ImageProjectionFitFailureMode.LOW_SIGNAL_TO_NOISE
+                return ImageProjectionFitFailureMode.LOW_SIGNAL_TO_NOISE_RATIO
 
         return ImageProjectionFitFailureMode.NONE
