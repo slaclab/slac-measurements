@@ -124,7 +124,9 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
         fit_result = self._fit_data_by_profile(
             profile_measurements=profile_measurements
         )
-        rms_sizes = self._get_rms_sizes(fit_result, detector=effective_detector)
+        rms_sizes, rms_sizes_err = self._get_rms_sizes(
+            fit_result, detector=effective_detector
+        )
 
         jitter_rms = None
         if jitter_correction and self._jitter_x is not None:
@@ -136,6 +138,7 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
         return WireMeasurementAnalysisResult(
             fit_result=fit_result,
             rms_sizes=rms_sizes,
+            rms_sizes_err=rms_sizes_err,
             collection_result=self.collection_result,
             metadata=metadata,
             profiles=profile_measurements,
@@ -215,7 +218,9 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
 
             # Generate fit curve (in beam coordinates)
             # Build kwargs dynamically to handle different fit types
-            curve_params = {k: v for k, v in fp.items() if k != "error"}
+            curve_params = {
+                k: v for k, v in fp.items() if k != "error" and not k.endswith("_err")
+            }
             fit_curve = fitting_module.curve(x=peak_window[0], **curve_params)
 
             return DetectorFit(
@@ -225,6 +230,16 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
                 offset=fp["off"],
                 curve=fit_curve,
                 positions=peak_window[0],
+                sigma_err=fp.get("sigma_err", 0.0),
+                mean_err=float(
+                    beam_to_stage(
+                        fp.get("mean_err", 0.0),
+                        profile,
+                        self.collection_result.metadata.install_angle,
+                    )
+                ),
+                amplitude_err=fp.get("amp_err", 0.0),
+                offset_err=fp.get("off_err", 0.0),
             )
 
         def _peak_window(
@@ -431,33 +446,40 @@ class WireMeasurementAnalysis(slac_measurements.beam_profile.BeamProfileAnalysis
 
     def _get_rms_sizes(
         self, fit_result: dict, detector: str
-    ) -> tuple[float | None, float | None]:
+    ) -> tuple[
+        tuple[float | None, float | None],
+        tuple[float | None, float | None],
+    ]:
         """
-        Extract x/y RMS sizes from fit results.
+        Extract x/y RMS sizes and their uncertainties from fit results.
 
         Parameters:
             fit_result (dict): Fit results from fit_data_by_profile().
             detector (str): Resolved detector name.
 
         Returns:
-            tuple[float | None, float | None]: (x_rms, y_rms) in meters,
-            or (None, None) if x/y are unavailable.
+            Tuple of (rms_sizes, rms_sizes_err) where each is
+            (x_value, y_value).  Values are None when x/y are unavailable.
         """
 
         x_rms = None
         y_rms = None
+        x_rms_err = None
+        y_rms_err = None
 
         if "x" in fit_result:
             detectors_x = fit_result["x"].detectors
             if detector in detectors_x:
                 x_rms = detectors_x[detector].sigma
+                x_rms_err = detectors_x[detector].sigma_err
 
         if "y" in fit_result:
             detectors_y = fit_result["y"].detectors
             if detector in detectors_y:
                 y_rms = detectors_y[detector].sigma
+                y_rms_err = detectors_y[detector].sigma_err
 
-        return (x_rms, y_rms)
+        return (x_rms, y_rms), (x_rms_err, y_rms_err)
 
     def _organize_data_by_profile(
         self, profile_indices: dict[str, np.ndarray]

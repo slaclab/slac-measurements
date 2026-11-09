@@ -35,6 +35,10 @@ class DetectorFit(BaseModel):
     offset: float
     curve: NDArrayAnnotatedType
     positions: NDArrayAnnotatedType
+    sigma_err: float = 0.0
+    mean_err: float = 0.0
+    amplitude_err: float = 0.0
+    offset_err: float = 0.0
 
 
 class FitResult(BaseModel):
@@ -111,12 +115,16 @@ class WireMeasurementAnalysisResult(BeamProfileMeasurementResult):
         fit_profile_count = len(self.fit_result)
         detector_count = len(meta.detectors)
         rms_sizes_repr = self.rms_sizes.tolist() if self.rms_sizes is not None else None
+        rms_err_repr = (
+            self.rms_sizes_err.tolist() if self.rms_sizes_err is not None else None
+        )
 
         return (
             f"WireMeasurementAnalysisResult("
             f"wire_name='{meta.wire_name}', "
             f"beampath='{meta.beampath}', "
             f"rms_sizes={rms_sizes_repr}, "
+            f"rms_sizes_err={rms_err_repr}, "
             f"rms_detector='{meta.rms_detector}', "
             f"fitting_method='{self.fitting_method}', "
             f"jitter_corrected={self.jitter_corrected}, "
@@ -171,7 +179,10 @@ class WireMeasurementAnalysisResult(BeamProfileMeasurementResult):
                 self,
                 f,
                 name_map={"profiles": "analysis/profiles"},
-                manual={"scan_ranges": _write_scan_ranges, "fit_result": _write_fit_result},
+                manual={
+                    "scan_ranges": _write_scan_ranges,
+                    "fit_result": _write_fit_result,
+                },
                 skip={"metadata"},  # duplicate of collection_result.metadata
             )
 

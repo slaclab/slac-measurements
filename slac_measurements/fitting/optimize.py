@@ -39,6 +39,47 @@ class Parameter(ABC):
     def scale(par, x, y): ...
 
 
+def compute_parameter_covariance(curve, param_names, pos, data, fitp):
+    """Compute the parameter covariance matrix at the fit optimum.
+
+    Uses the same approach as the MATLAB ``util_processFit``:
+    ``pcov = pinv(J'J) * (chi²/NDF)`` where *J* is the Jacobian of the
+    model curve evaluated at the best-fit parameters and *NDF* is
+    ``max(N - p, 1)``.
+
+    Returns an ``(n_params, n_params)`` covariance matrix.
+    """
+    curve_params = {k: v for k, v in fitp.items() if k in param_names}
+    params_vec = np.array([curve_params[n] for n in param_names])
+    n_data = len(pos)
+    n_params = len(params_vec)
+
+    def _model(p):
+        return curve(pos, **dict(zip(param_names, p)))
+
+    # Central finite-difference Jacobian
+    f0 = _model(params_vec)
+    J = np.empty((n_data, n_params))
+    for j in range(n_params):
+        h = max(abs(params_vec[j]) * 1e-8, 1e-10)
+        p_plus = params_vec.copy()
+        p_minus = params_vec.copy()
+        p_plus[j] += h
+        p_minus[j] -= h
+        J[:, j] = (_model(p_plus) - _model(p_minus)) / (2 * h)
+
+    residuals = data - f0
+    mse = np.sum(residuals**2) / max(n_data - n_params, 1)
+    JtJ = J.T @ J
+
+    try:
+        pcov = np.linalg.pinv(JtJ) * mse
+    except np.linalg.LinAlgError:
+        pcov = np.full((n_params, n_params), np.inf)
+
+    return pcov
+
+
 def param_fit(curve, params, pos, data, use_prior=False):
     """
     Given a curve function and parameter objects, computes a 1D curve fit
@@ -80,6 +121,12 @@ def param_fit(curve, params, pos, data, use_prior=False):
     fitp = {p.name: p.scale(val, pos, data) for p, val in zip(params, res.x)}
     error = np.sqrt(np.mean((data - curve(pos, **fitp)) ** 2))
     fitp["error"] = error
+
+    param_names = [p.name for p in params]
+    pcov = compute_parameter_covariance(curve, param_names, pos, data, fitp)
+    parstd = np.sqrt(np.diag(pcov))
+    for name, std in zip(param_names, parstd):
+        fitp[f"{name}_err"] = float(std)
 
     return fitp
 
