@@ -14,6 +14,10 @@ import pathlib
 import sys
 import warnings
 
+from slac_measurements.wires.analysis import mat_export
+from slac_measurements.wires.analysis.mat_export import analysis_result_to_mat
+from slac_measurements.wires.analysis.results import load_from_h5
+
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
@@ -31,10 +35,6 @@ def main(argv: list[str] | None = None) -> None:
         help="Output .mat file path (default: same name with .mat extension)",
     )
     args = parser.parse_args(argv)
-
-    from slac_measurements.wires.analysis.results import load_from_h5
-    from slac_measurements.wires.analysis import mat_export
-    from slac_measurements.wires.analysis.mat_export import analysis_result_to_mat
 
     h5_path = pathlib.Path(args.h5_path)
     if not h5_path.exists():
