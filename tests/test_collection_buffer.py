@@ -3,24 +3,97 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 from slac_measurements.wires.collection.base import BaseWireMeasurementCollection
-from slac_measurements.wires.collection.buffer import reserve_buffer
+from slac_measurements.wires.collection.buffer import (
+    BufferError,
+    _calculate_buffer_points,
+    reserve_buffer,
+)
 
 
 _MODULE = "slac_measurements.wires.collection.buffer"
+_BYKIK = "slac_timing.masks.bykik_inclusion_masks"
+
+
+def _fake_buffer(rate_limit_hz=None):
+    return MagicMock(rate_limit_hz=rate_limit_hz, number=3, n_measurements=0)
 
 
 @patch(f"{_MODULE}._get_username", return_value="tester")
 @patch(f"{_MODULE}.create_buffer")
-class ReserveBufferAreaTest(TestCase):
-    def test_area_forwarded_to_create_buffer(self, mock_create, _user):
+@patch(_BYKIK)
+class ReserveBufferTest(TestCase):
+    def _setup(self, mock_bykik, mock_create, rate_limit_hz):
+        mock_bykik.return_value = (["pockcel_perm"], rate_limit_hz)
+        mock_create.return_value = _fake_buffer(rate_limit_hz)
+
+    def _n_measurements(self, mock_create):
+        return mock_create.call_args.kwargs["n_measurements"]
+
+    def test_area_forwarded_to_create_buffer(self, mock_bykik, mock_create, _user):
+        self._setup(mock_bykik, mock_create, None)
         reserve_buffer(beampath="CU_HXR", pulses=350, beam_rate=120, area="LTUH")
 
         self.assertEqual(mock_create.call_args.kwargs["area"], "LTUH")
+        mock_bykik.assert_called_once_with("CU_HXR", "LTUH")
 
-    def test_area_defaults_to_none(self, mock_create, _user):
+    def test_area_defaults_to_none(self, mock_bykik, mock_create, _user):
+        self._setup(mock_bykik, mock_create, None)
         reserve_buffer(beampath="CU_HXR", pulses=350, beam_rate=120)
 
         self.assertIsNone(mock_create.call_args.kwargs["area"])
+
+    def test_unmasked_size_unchanged(self, mock_bykik, mock_create, _user):
+        self._setup(mock_bykik, mock_create, None)
+        reserve_buffer(beampath="CU_HXR", pulses=350, beam_rate=120, area="LTUH")
+
+        self.assertEqual(
+            self._n_measurements(mock_create), _calculate_buffer_points(350, 120)
+        )
+
+    def test_otf_masked_size_scaled_to_buffer_rate(
+        self, mock_bykik, mock_create, _user
+    ):
+        self._setup(mock_bykik, mock_create, 30.0)
+        reserve_buffer(beampath="CU_HXR", pulses=350, beam_rate=120, area="LTUH")
+
+        full = _calculate_buffer_points(350, 120)
+        self.assertEqual(self._n_measurements(mock_create), -(-full // 4))
+
+    def test_step_masked_size_uses_buffer_rate(self, mock_bykik, mock_create, _user):
+        self._setup(mock_bykik, mock_create, 30.0)
+        reserve_buffer(
+            beampath="CU_HXR",
+            pulses=350,
+            beam_rate=120,
+            area="LTUH",
+            wire_follows_buffer_rate=True,
+        )
+
+        self.assertEqual(
+            self._n_measurements(mock_create), _calculate_buffer_points(350, 30.0)
+        )
+
+    def test_rate_change_during_reservation_releases_and_raises(
+        self, mock_bykik, mock_create, _user
+    ):
+        mock_bykik.return_value = (["pockcel_perm"], 30.0)
+        buf = _fake_buffer(rate_limit_hz=None)
+        mock_create.return_value = buf
+
+        with self.assertRaises(BufferError):
+            reserve_buffer(beampath="CU_HXR", pulses=350, beam_rate=120, area="LTUH")
+        buf.release.assert_called_once()
+
+
+class CalculateBufferPointsTest(TestCase):
+    def test_historical_mode(self):
+        self.assertEqual(_calculate_buffer_points(350, 120), 1453)
+
+    def test_buffer_rate_scales_points(self):
+        self.assertEqual(_calculate_buffer_points(350, 120, 30.0), 364)
+
+    def test_buffer_rate_not_below_wire_rate_is_unscaled(self):
+        self.assertEqual(_calculate_buffer_points(350, 120, 120), 1453)
 
 
 def _collection(beam_rate, rate_limit_hz, n_measurements=1200):
