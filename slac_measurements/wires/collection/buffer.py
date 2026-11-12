@@ -29,7 +29,13 @@ def reserve_buffer(
     beam_rate: int,
     name: str = _BUFFER_NAME,
     logger: logging.Logger | None = None,
+    area: str | None = None,
 ) -> Buffer:
+    """Reserve a timing buffer sized for a wire scan.
+
+    ``area`` is the wire's machine area. For CU buffers it selects the BYKIK
+    rate mask (applied in LTUH / LTUS only).
+    """
     user = _get_username()
     if logger:
         logger.info("Reserving buffer...")
@@ -39,10 +45,18 @@ def reserve_buffer(
         n_measurements=_calculate_buffer_points(pulses, beam_rate),
         user=user,
         name=name,
+        area=area,
     )
 
     if logger:
         logger.info("Reserved timing buffer %s.", buf.number)
+        rate_limit_hz = getattr(buf, "rate_limit_hz", None)
+        if rate_limit_hz is not None:
+            logger.info(
+                "Buffer %s limited to %s Hz by BYKIK rate mask.",
+                buf.number,
+                rate_limit_hz,
+            )
 
     return buf
 

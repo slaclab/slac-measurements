@@ -27,6 +27,7 @@ class StepWireMeasurementCollection(BaseWireMeasurementCollection):
 
         positions = get_step_positions(self.beam_profile_device)
         total_positions = len(positions)
+        effective_rate = self._effective_buffer_rate()
         for index, position in enumerate(positions):
             move_to_step_position(
                 self.beam_profile_device,
@@ -35,6 +36,7 @@ class StepWireMeasurementCollection(BaseWireMeasurementCollection):
                 position_index=index,
                 total_positions=total_positions,
                 positions=positions,
+                beam_rate=effective_rate,
             )
 
         self.logger.info("Retracting wire...")

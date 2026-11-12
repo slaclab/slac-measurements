@@ -290,9 +290,21 @@ class BaseWireMeasurementCollection(
                 logger=self.logger,
                 pulses=self.beam_profile_device.scan_pulses,
                 beam_rate=self.beam_profile_device.beam_rate,
+                area=self.beam_profile_device.area,
             )
 
         return self.buffer
+
+    def _effective_buffer_rate(self) -> float:
+        """Rate (Hz) at which the buffer records shots.
+
+        Lower than the beam rate when a BYKIK rate mask is applied.
+        """
+        beam_rate = self.beam_profile_device.beam_rate
+        rate_limit_hz = getattr(self.buffer, "rate_limit_hz", None)
+        if rate_limit_hz is None:
+            return beam_rate
+        return min(beam_rate, rate_limit_hz)
 
     def _calculate_acquisition_timeout_s(self) -> float:
         """Return timeout above minimum expected buffer acquisition time."""
@@ -303,7 +315,7 @@ class BaseWireMeasurementCollection(
                 f"Invalid buffer point count for timeout calculation: {n_points}"
             )
 
-        min_expected_s = n_points / self.beam_profile_device.beam_rate
+        min_expected_s = n_points / self._effective_buffer_rate()
         return max(
             min_expected_s * _ACQUISITION_TIMEOUT_MARGIN,
             min_expected_s + _ACQUISITION_TIMEOUT_MIN_EXTRA_S,
