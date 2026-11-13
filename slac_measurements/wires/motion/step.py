@@ -49,15 +49,27 @@ def get_step_positions(device):
 
 
 def move_to_step_position(
-    device, logger=logger, *, position, position_index, total_positions, positions
+    device,
+    logger=logger,
+    *,
+    position,
+    position_index,
+    total_positions,
+    positions,
+    beam_rate=None,
 ):
-    """Move wire to a step position and wait for arrival."""
+    """Move wire to a step position and wait for arrival.
+
+    ``beam_rate`` is the rate (Hz) the buffer records shots at; it sets the
+    data-taking speed. Defaults to ``device.beam_rate``.
+    """
 
     def calculate_speed():
         if position_index % 2 == 0:
             return int(device.speed_max)
+        rate = device.beam_rate if beam_rate is None else beam_rate
         position_delta = positions[position_index] - positions[position_index - 1]
-        speed = (position_delta / device.scan_pulses) * device.beam_rate
+        speed = (position_delta / device.scan_pulses) * rate
         return int(speed)
 
     logger.info(

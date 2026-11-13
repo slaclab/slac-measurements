@@ -1,6 +1,7 @@
 """Step-scan wire collection: buffered data acquisition with discrete motion."""
 
 import time
+from typing import ClassVar
 
 from slac_measurements.wires.collection.base import BaseWireMeasurementCollection
 from slac_measurements.wires.motion.step import (
@@ -13,6 +14,9 @@ from slac_measurements.wires.motion.step import (
 
 class StepWireMeasurementCollection(BaseWireMeasurementCollection):
     """Collect wire scan data using discrete step motion."""
+
+    # Step speed is computed from the buffer's recording rate.
+    _WIRE_FOLLOWS_BUFFER_RATE: ClassVar[bool] = True
 
     def _run_collection_scan(self) -> None:
         """Run a step scan: init wire, start buffer, move positions, retract, wait."""
@@ -27,6 +31,7 @@ class StepWireMeasurementCollection(BaseWireMeasurementCollection):
 
         positions = get_step_positions(self.beam_profile_device)
         total_positions = len(positions)
+        effective_rate = self._effective_buffer_rate()
         for index, position in enumerate(positions):
             move_to_step_position(
                 self.beam_profile_device,
@@ -35,6 +40,7 @@ class StepWireMeasurementCollection(BaseWireMeasurementCollection):
                 position_index=index,
                 total_positions=total_positions,
                 positions=positions,
+                beam_rate=effective_rate,
             )
 
         self.logger.info("Retracting wire...")

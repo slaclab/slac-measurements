@@ -2,7 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import ClassVar, Literal
 
 from typing_extensions import Self
 
@@ -55,6 +55,10 @@ class BaseWireMeasurementCollection(
     data: dict | None = None
     logger: logging.Logger | None = None
     metadata: MeasurementMetadata | None = None
+
+    # True if the scan sets wire speed from the buffer's recording rate (step);
+    # False if the motion IOC paces it for the full beam rate (OTF).
+    _WIRE_FOLLOWS_BUFFER_RATE: ClassVar[bool] = False
 
     def measure(self) -> WireMeasurementCollectionResult:
         """
@@ -290,9 +294,21 @@ class BaseWireMeasurementCollection(
                 logger=self.logger,
                 pulses=self.beam_profile_device.scan_pulses,
                 beam_rate=self.beam_profile_device.beam_rate,
+                area=self.beam_profile_device.area,
+                wire_follows_buffer_rate=self._WIRE_FOLLOWS_BUFFER_RATE,
             )
 
         return self.buffer
+
+    def _effective_buffer_rate(self) -> float:
+        """Rate (Hz) at which the buffer records shots.
+
+        Lower than the beam rate when a BYKIK rate mask is applied.
+        """
+        return slac_measurements.wires.collection.buffer.effective_rate(
+            self.beam_profile_device.beam_rate,
+            getattr(self.buffer, "rate_limit_hz", None),
+        )
 
     def _calculate_acquisition_timeout_s(self) -> float:
         """Return timeout above minimum expected buffer acquisition time."""
@@ -303,7 +319,7 @@ class BaseWireMeasurementCollection(
                 f"Invalid buffer point count for timeout calculation: {n_points}"
             )
 
-        min_expected_s = n_points / self.beam_profile_device.beam_rate
+        min_expected_s = n_points / self._effective_buffer_rate()
         return max(
             min_expected_s * _ACQUISITION_TIMEOUT_MARGIN,
             min_expected_s + _ACQUISITION_TIMEOUT_MIN_EXTRA_S,
