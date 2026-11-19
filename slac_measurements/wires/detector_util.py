@@ -20,29 +20,11 @@ def pick_by_beampath(
     return detector_container
 
 
-def strip_colon_suffix(name: str) -> str:
-    """Remove the ':area' suffix from a device-layer detector string.
-
-    ``"PMT756:LTUH"`` becomes ``"PMT756"``.
-    """
-    return name.split(":", 1)[0]
-
-
-def split_detector_string(detector_string: str) -> tuple[str, str]:
-    """Split a device-layer detector string into ``(name, area)``.
-
-    ``"PMT756:LTUH"`` becomes ``("PMT756", "LTUH")``.
-    """
-    name, area = detector_string.split(":", 1)
-    return name, area
-
-
 class DetectorConfig(NamedTuple):
     """Result of resolving Wire metadata detectors for a beampath."""
 
     names: list[str]
     default: str
-    raw_strings: list[str]
 
 
 def resolve_detectors(
@@ -50,8 +32,8 @@ def resolve_detectors(
     default_detector: str | dict[str, str],
     beampath: str,
 ) -> DetectorConfig:
-    """Resolve detector timing dicts, strip colon suffixes, and determine
-    the default detector for a given beampath.
+    """Resolve detector timing dicts and determine the default detector
+    for a given beampath.
 
     Parameters
     ----------
@@ -65,30 +47,26 @@ def resolve_detectors(
     Returns
     -------
     DetectorConfig
-        ``names`` — colon-stripped detector names.
-        ``default`` — colon-stripped default detector name.
-        ``raw_strings`` — original timing-resolved strings with colon
-        suffixes intact (needed for device instantiation).
+        ``names`` — detector MAD names for the active beampath.
+        ``default`` — default detector MAD name.
     """
     beampath_key = resolve_beampath_key(beampath)
 
     if isinstance(detectors, dict):
-        raw_strings = detectors.get(beampath_key, [])
+        names = list(detectors.get(beampath_key, []))
     else:
-        raw_strings = detectors
+        names = list(detectors)
 
     if isinstance(default_detector, dict):
-        raw_default = default_detector.get(beampath_key, "")
+        default = default_detector.get(beampath_key, "")
     else:
-        raw_default = default_detector
+        default = default_detector
 
-    names = [strip_colon_suffix(d) for d in raw_strings]
-
-    if raw_default:
-        default = strip_colon_suffix(raw_default)
-    elif names:
+    if not default:
+        if not names:
+            raise RuntimeError(
+                "No detectors available; cannot determine default detector."
+            )
         default = names[0]
-    else:
-        raise RuntimeError("No detectors available; cannot determine default detector.")
 
-    return DetectorConfig(names=names, default=default, raw_strings=raw_strings)
+    return DetectorConfig(names=names, default=default)
