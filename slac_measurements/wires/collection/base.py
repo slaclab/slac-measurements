@@ -112,15 +112,16 @@ class BaseWireMeasurementCollection(
 
         Includes the wire device, detectors, jitter-correction BPMs, and
         charge toroids. Devices are created by MAD name with
-        ``slac_devices.reader.create_device``, which takes the device type
-        and area from slac_db. Names not found in slac_db are skipped with a
-        warning. ``TMITLOSS`` is a computed pseudo-device and is always built
-        from the wire and buffer.
+        ``slac_devices.reader.create_many_devices``. Names that are unknown or
+        whose device fails validation are skipped with a warning.
+        ``TMITLOSS`` is a computed pseudo-device and is always built from the
+        wire and buffer.
         """
 
-        import slac_db.device
         import slac_devices.reader
         import slac_measurements.tmit_loss
+
+        self.logger.info("Creating device dictionary...")
 
         metadata = self.beam_profile_device.metadata
         names = list(
@@ -132,38 +133,26 @@ class BaseWireMeasurementCollection(
                 ]
             )
         )
-        db_devices = slac_db.device.build_many_devices(
+        created = slac_devices.reader.create_many_devices(
             [n for n in names if n != "TMITLOSS"]
         )
 
-        def _instantiate_device(name: str):
-            """Instantiate a single device by MAD name."""
-
+        devices = {self.beam_profile_device.name: self.beam_profile_device}
+        for name in names:
             if name == "TMITLOSS":
-                return slac_measurements.tmit_loss.TMITLoss(
+                devices[name] = slac_measurements.tmit_loss.TMITLoss(
                     buffer=self.buffer,
                     beam_profile_device=self.beam_profile_device,
                     beampath=self.beampath,
                 )
-
-            # create_device raises NoRows for unknown names, so filter first.
-            if name not in db_devices:
-                self.logger.warning("Device '%s' not found in slac_db. Skipping.", name)
-                return None
-
-            device = slac_devices.reader.create_device(name)
-            if device is None:
-                self.logger.warning("Device creation for %s returned None.", name)
-
-            return device
-
-        self.logger.info("Creating device dictionary...")
-
-        devices = {self.beam_profile_device.name: self.beam_profile_device}
-        for name in names:
-            device = _instantiate_device(name)
-            if device is not None:
-                devices[name] = device
+            elif name in created:
+                devices[name] = created[name]
+            else:
+                self.logger.warning(
+                    "Could not create device '%s' (unknown name or failed "
+                    "validation). Skipping.",
+                    name,
+                )
 
         self.logger.info("Device dictionary built.")
         return devices
