@@ -123,7 +123,7 @@ def _get_sector_pmt_list(area: str, cfg: dict | None = None) -> list[str]:
         with open(meta_path) as f:
             area_meta = yaml.safe_load(f)
         if area in area_meta and "detectors" in area_meta[area]:
-            return [d.split(":")[0] for d in area_meta[area]["detectors"]]
+            return list(area_meta[area]["detectors"])
     return []
 
 

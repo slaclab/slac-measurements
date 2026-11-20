@@ -15,10 +15,7 @@ from slac_measurements.wires.collection.results import (
     MeasurementMetadata,
     WireMeasurementCollectionResult,
 )
-from slac_measurements.wires.detector_util import (
-    resolve_detectors,
-    split_detector_string,
-)
+from slac_measurements.wires.detector_util import resolve_detectors
 
 _LOG_DIR = Path("/u1/lcls/physics/data/wire_scan/logs")
 _LOGGER_NAME = "wire_scan_logger"
@@ -50,7 +47,6 @@ class BaseWireMeasurementCollection(
     buffer: Buffer | None = None
     devices: dict | None = None
     detectors: list | None = None
-    _detector_strings: list | None = None
     _resolved_default: str | None = None
     data: dict | None = None
     logger: logging.Logger | None = None
@@ -112,76 +108,51 @@ class BaseWireMeasurementCollection(
         )
 
     def _create_device_dictionary(self) -> dict:
-        """Create dictionary of required devices. Includes the wire device and detectors."""
+        """Create dictionary of required devices.
 
-        def _instantiate_device(name: str, area: str):
-            """Instantiate a single device by name and area."""
+        Includes the wire device, detectors, jitter-correction BPMs, and
+        charge toroids. Devices are created by MAD name with
+        ``slac_devices.reader.create_many_devices``. Names that are unknown or
+        whose device fails validation are skipped with a warning.
+        ``TMITLOSS`` is a computed pseudo-device and is always built from the
+        wire and buffer.
+        """
 
-            import slac_devices.reader
-            import slac_measurements.tmit_loss
+        import slac_devices.reader
+        import slac_measurements.tmit_loss
 
+        self.logger.info("Creating device dictionary...")
+
+        metadata = self.beam_profile_device.metadata
+        names = list(
+            dict.fromkeys(
+                [
+                    *self.detectors,
+                    *(metadata.jitter_bpms or []),
+                    *(metadata.charge_toroids or []),
+                ]
+            )
+        )
+        created = slac_devices.reader.create_many_devices(
+            [n for n in names if n != "TMITLOSS"]
+        )
+
+        devices = {self.beam_profile_device.name: self.beam_profile_device}
+        for name in names:
             if name == "TMITLOSS":
-                return slac_measurements.tmit_loss.TMITLoss(
+                devices[name] = slac_measurements.tmit_loss.TMITLoss(
                     buffer=self.buffer,
                     beam_profile_device=self.beam_profile_device,
                     beampath=self.beampath,
                 )
-
-            create_by_prefix = {
-                "LBLM": slac_devices.reader.create_lblm,
-                "PMT": slac_devices.reader.create_pmt,
-                "BPM": slac_devices.reader.create_bpm,
-                "IM": slac_devices.reader.create_toroid,
-            }
-
-            creator = next(
-                (
-                    f
-                    for prefix, f in create_by_prefix.items()
-                    if name.startswith(prefix)
-                ),
-                None,
-            )
-
-            if creator is None:
-                self.logger.warning("Unknown device type '%s'. Skipping.", name)
-                return None
-
-            device = creator(area=area, name=name)
-            if device is None:
-                self.logger.warning("Device creation for %s returned None.", name)
-
-            return device
-
-        self.logger.info("Creating device dictionary...")
-
-        devices = {self.beam_profile_device.name: self.beam_profile_device}
-
-        for ds in self._detector_strings:
-            name, area = split_detector_string(ds)
-            detector = _instantiate_device(name, area)
-            if detector is not None:
-                devices[name] = detector
-
-        # Add jitter correction BPMs if defined
-        jitter_bpm_names = self.beam_profile_device.metadata.jitter_bpms
-        if jitter_bpm_names:
-            area = self.beam_profile_device.area
-            for name in jitter_bpm_names:
-                bpm = _instantiate_device(name, area)
-                if bpm is not None:
-                    devices[name] = bpm
-
-        # Add charge toroid devices if defined
-        charge_toroid_names = self.beam_profile_device.metadata.charge_toroids
-        if charge_toroid_names:
-            area = self.beam_profile_device.area
-            for name in charge_toroid_names:
-                if name in devices:
-                    continue
-                device = _instantiate_device(name, area)
-                if device is not None:
-                    devices[name] = device
+            elif name in created:
+                devices[name] = created[name]
+            else:
+                self.logger.warning(
+                    "Could not create device '%s' (unknown name or failed "
+                    "validation). Skipping.",
+                    name,
+                )
 
         self.logger.info("Device dictionary built.")
         return devices
@@ -339,7 +310,6 @@ class BaseWireMeasurementCollection(
             self.beam_profile_device.metadata.default_detector,
             self.beampath,
         )
-        self._detector_strings = config.raw_strings
         self.detectors = config.names
         self._resolved_default = config.default
         return self
