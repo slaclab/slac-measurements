@@ -111,11 +111,11 @@ class BaseWireMeasurementCollection(
         """Create dictionary of required devices.
 
         Includes the wire device, detectors, jitter-correction BPMs, and
-        charge toroids. Each device's area is looked up in slac_db by MAD
-        name. Devices not found in slac_db, or whose area is a starred
-        (``*AREA``) placeholder excluded from the device YAML, are skipped
-        with a warning. ``TMITLOSS`` is a computed pseudo-device and is
-        always built from the wire and buffer.
+        charge toroids. Devices are created by MAD name with
+        ``slac_devices.reader.create_device``, which takes the device type
+        and area from slac_db. Names not found in slac_db are skipped with a
+        warning. ``TMITLOSS`` is a computed pseudo-device and is always built
+        from the wire and buffer.
         """
 
         import slac_db.device
@@ -146,41 +146,12 @@ class BaseWireMeasurementCollection(
                     beampath=self.beampath,
                 )
 
+            # create_device raises NoRows for unknown names, so filter first.
             if name not in db_devices:
                 self.logger.warning("Device '%s' not found in slac_db. Skipping.", name)
                 return None
 
-            area = db_devices[name].area
-            if area.startswith("*"):
-                self.logger.warning(
-                    "Device '%s' has placeholder area '%s' with no device YAML. "
-                    "Skipping.",
-                    name,
-                    area,
-                )
-                return None
-
-            create_by_prefix = {
-                "LBLM": slac_devices.reader.create_lblm,
-                "PMT": slac_devices.reader.create_pmt,
-                "BPM": slac_devices.reader.create_bpm,
-                "IM": slac_devices.reader.create_toroid,
-            }
-
-            creator = next(
-                (
-                    f
-                    for prefix, f in create_by_prefix.items()
-                    if name.startswith(prefix)
-                ),
-                None,
-            )
-
-            if creator is None:
-                self.logger.warning("Unknown device type '%s'. Skipping.", name)
-                return None
-
-            device = creator(area=area, name=name)
+            device = slac_devices.reader.create_device(name)
             if device is None:
                 self.logger.warning("Device creation for %s returned None.", name)
 
